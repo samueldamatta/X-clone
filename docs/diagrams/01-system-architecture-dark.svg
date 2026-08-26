@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1480 990" width="1480" height="990" role="img" aria-label="X-clone — System Architecture" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<defs>
+<marker id="ah-edge" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9198a1"/></marker>
+<marker id="ah-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff9a5c"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#0d1117"/>
+<text x="40" y="46" font-size="22" font-weight="600" fill="#e6edf3">X-clone — System Architecture</text>
+<text x="40" y="70" font-size="13" fill="#9198a1">Hybrid service split · NestJS on request-shaped work, Go on the hot path · Kafka as the event backbone</text>
+<rect x="40" y="110" width="1140" height="96" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="54" y="102" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">CLIENTS</text>
+<rect x="40" y="250" width="1140" height="96" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="54" y="242" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">EDGE</text>
+<rect x="40" y="392" width="1140" height="116" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="54" y="384" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">SERVICES</text>
+<rect x="40" y="552" width="1140" height="86" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="54" y="544" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">EVENT BACKBONE</text>
+<rect x="40" y="682" width="1140" height="116" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="54" y="674" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">EVENT CONSUMERS</text>
+<rect x="40" y="842" width="1140" height="96" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="54" y="834" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">DATA STORES</text>
+<rect x="1230" y="392" width="210" height="546" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="1244" y="384" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">OBSERVABILITY</text>
+<path d="M465,192 L465,228 L610,228 L610,264" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M755,192 L755,228 L610,228 L610,264" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M370,192 L370,228 L230,228 L230,264" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 5" marker-end="url(#ah-edge)"/>
+<path d="M496,332 L496,352.5 L167.6,352.5 L167.6,414" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M571,332 L571,389.4 L388.8,389.4 L388.8,414" fill="none" stroke="#ff9a5c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-accent)"/>
+<path d="M649,332 L649,389.4 L831.2,389.4 L831.2,414" fill="none" stroke="#ff9a5c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-accent)"/>
+<path d="M724,332 L724,352.5 L1052.4,352.5 L1052.4,414" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M727.6,455 L713.6,455" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M388.8,496 L388.8,531 L610,531 L610,566" fill="none" stroke="#ff9a5c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-accent)"/>
+<path d="M332.44,624 L332,706" fill="none" stroke="#ff9a5c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-accent)"/>
+<path d="M610,624 L610,706" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 5" marker-end="url(#ah-edge)"/>
+<path d="M887.56,624 L888,706" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="7 5" marker-end="url(#ah-edge)"/>
+<path d="M332,788 L332,822 L471,822 L471,856" fill="none" stroke="#ff9a5c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-accent)"/>
+<rect x="340" y="130" width="250" height="56" rx="10" fill="#12283f" stroke="#4dabf7" stroke-width="1.6"/>
+<text x="465" y="152" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#a9d3fb">Web App</text>
+<text x="465" y="172" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#4dabf7">Next.js 15</text>
+<rect x="630" y="130" width="250" height="56" rx="10" fill="#12283f" stroke="#4dabf7" stroke-width="1.6"/>
+<text x="755" y="152" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#a9d3fb">Mobile</text>
+<text x="755" y="172" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#4dabf7">future</text>
+<rect x="120" y="270" width="220" height="56" rx="10" fill="#3a2413" stroke="#ff922b" stroke-width="1.6"/>
+<text x="230" y="292" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#ffd8a8">CDN</text>
+<text x="230" y="312" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff922b">media + static</text>
+<rect x="460" y="270" width="300" height="56" rx="10" fill="#3a2413" stroke="#ff922b" stroke-width="1.6"/>
+<text x="610" y="292" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#ffd8a8">API Gateway / BFF</text>
+<text x="610" y="312" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff922b">JWT · rate limit · aggregation</text>
+<rect x="70" y="420" width="195.2" height="70" rx="10" fill="#241f3d" stroke="#9775fa" stroke-width="1.6"/>
+<text x="167.6" y="449" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#d0bfff">Identity</text>
+<text x="167.6" y="469" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9775fa">NestJS</text>
+<rect x="291.2" y="420" width="195.2" height="70" rx="10" fill="#241f3d" stroke="#9775fa" stroke-width="1.6"/>
+<text x="388.8" y="449" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#d0bfff">Tweet</text>
+<text x="388.8" y="469" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9775fa">NestJS · outbox</text>
+<rect x="512.4" y="420" width="195.2" height="70" rx="10" fill="#0f2f36" stroke="#3bc9db" stroke-width="1.6"/>
+<text x="610" y="449" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#99e9f2">Graph</text>
+<text x="610" y="469" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#3bc9db">Go · gRPC</text>
+<rect x="733.6" y="420" width="195.2" height="70" rx="10" fill="#0f2f36" stroke="#3bc9db" stroke-width="1.6"/>
+<text x="831.2" y="449" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#99e9f2">Timeline API</text>
+<text x="831.2" y="469" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#3bc9db">Go · hybrid read</text>
+<rect x="954.8" y="420" width="195.2" height="70" rx="10" fill="#241f3d" stroke="#9775fa" stroke-width="1.6"/>
+<text x="1052.4" y="449" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#d0bfff">Media</text>
+<text x="1052.4" y="469" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9775fa">NestJS · presigned</text>
+<rect x="70" y="572" width="1080" height="46" rx="10" fill="#332a0f" stroke="#fcc419" stroke-width="1.6"/>
+<text x="610" y="589" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#ffec99">Kafka  ·  event backbone</text>
+<text x="610" y="609" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#fcc419">tweet.created · tweet.deleted · user.followed · tweet.liked · user.registered  (+ DLQ per topic)</text>
+<rect x="209" y="712" width="246" height="70" rx="10" fill="#0f2f36" stroke="#3bc9db" stroke-width="1.6"/>
+<text x="332" y="741" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#99e9f2">Fanout Worker</text>
+<text x="332" y="761" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#3bc9db">Go · writes timelines</text>
+<rect x="487" y="712" width="246" height="70" rx="10" fill="#241f3d" stroke="#9775fa" stroke-width="1.6"/>
+<text x="610" y="741" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#d0bfff">Notification</text>
+<text x="610" y="761" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9775fa">NestJS · WebSocket push</text>
+<rect x="765" y="712" width="246" height="70" rx="10" fill="#241f3d" stroke="#9775fa" stroke-width="1.6"/>
+<text x="888" y="741" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#d0bfff">Search</text>
+<text x="888" y="761" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9775fa">NestJS · indexer</text>
+<rect x="70" y="862" width="246" height="56" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="1.6"/>
+<text x="193" y="884" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#c9d1d9">PostgreSQL</text>
+<text x="193" y="904" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#8b949e">write model · schema per service</text>
+<rect x="348" y="862" width="246" height="56" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="1.6"/>
+<text x="471" y="884" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#c9d1d9">Redis</text>
+<text x="471" y="904" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#8b949e">timelines · cache · rate limits</text>
+<rect x="626" y="862" width="246" height="56" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="1.6"/>
+<text x="749" y="884" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#c9d1d9">OpenSearch</text>
+<text x="749" y="904" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#8b949e">search + trends read model</text>
+<rect x="904" y="862" width="246" height="56" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="1.6"/>
+<text x="1027" y="884" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#c9d1d9">MinIO</text>
+<text x="1027" y="904" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#8b949e">S3-compatible media objects</text>
+<rect x="1250" y="430" width="170" height="56" rx="10" fill="#122b1a" stroke="#51cf66" stroke-width="1.6"/>
+<text x="1335" y="452" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#b2f2bb">OpenTelemetry</text>
+<text x="1335" y="472" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#51cf66">SDK in every service</text>
+<rect x="1250" y="560" width="170" height="56" rx="10" fill="#122b1a" stroke="#51cf66" stroke-width="1.6"/>
+<text x="1335" y="582" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#b2f2bb">Jaeger</text>
+<text x="1335" y="602" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#51cf66">distributed traces</text>
+<rect x="1250" y="690" width="170" height="56" rx="10" fill="#122b1a" stroke="#51cf66" stroke-width="1.6"/>
+<text x="1335" y="712" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#b2f2bb">Prometheus</text>
+<text x="1335" y="732" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#51cf66">metrics</text>
+<rect x="1250" y="820" width="170" height="56" rx="10" fill="#122b1a" stroke="#51cf66" stroke-width="1.6"/>
+<text x="1335" y="842" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#b2f2bb">Grafana</text>
+<text x="1335" y="862" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#51cf66">dashboards + SLOs</text>
+<rect x="515.5" y="219" width="44" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="537.5" y="228" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">HTTPS</text>
+<rect x="278" y="219" width="44" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="300" y="228" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">media</text>
+<rect x="457.9" y="380.4" width="44" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="479.9" y="389.4" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff9a5c">write</text>
+<rect x="721.3" y="380.4" width="37.6" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="740.1" y="389.4" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff9a5c">read</text>
+<rect x="701.8" y="446" width="37.6" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="720.6" y="455" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">gRPC</text>
+<rect x="442.2" y="522" width="114.4" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="499.4" y="531" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff9a5c">outbox → publish</text>
+<rect x="284.62" y="656" width="95.2" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="332.22" y="665" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff9a5c">tweet.created</text>
+<rect x="520.8" y="656" width="178.4" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="610" y="665" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">likes · follows · mentions</text>
+<rect x="865.78" y="656" width="44" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="887.78" y="665" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">index</text>
+<rect x="341.1" y="813" width="120.8" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="401.5" y="822" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff9a5c">LPUSH × followers</text>
+<text x="800" y="280.5" font-size="12.5" fill="#9198a1" text-anchor="start">
+<tspan x="800">Rate limiting is enforced here, not per service:</tspan>
+<tspan x="800" dy="18.125">token bucket in Redis, keyed by user and by IP.</tspan>
+<tspan x="800" dy="18.125">One place to reason about abuse, one place to tune.</tspan>
+</text>
+<text x="610" y="964.5" font-size="12.5" fill="#ff9a5c" text-anchor="middle">
+<tspan x="610">The orange path is the write→read loop that defines the system. How it splits for celebrities is scene 02-hybrid-fanout.</tspan>
+</text>
+</svg>

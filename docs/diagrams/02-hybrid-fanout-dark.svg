@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1480 1240" width="1480" height="1240" role="img" aria-label="X-clone — Hybrid Fan-out" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<defs>
+<marker id="ah-edge" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9198a1"/></marker>
+<marker id="ah-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff9a5c"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#0d1117"/>
+<text x="40" y="46" font-size="22" font-weight="600" fill="#e6edf3">X-clone — Hybrid Fan-out</text>
+<text x="40" y="70" font-size="13" fill="#9198a1">Precompute the timeline for ordinary authors, compute it on read for celebrities — and merge both at request time</text>
+<rect x="60" y="130" width="640" height="490" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="74" y="122" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">FAN-OUT ON WRITE — AUTHOR UNDER 10K FOLLOWERS (~99.9% OF ACCOUNTS)</text>
+<rect x="780" y="130" width="640" height="490" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="794" y="122" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">NO FAN-OUT — AUTHOR OVER 10K FOLLOWERS (THE &quot;CELEBRITY PROBLEM&quot;)</text>
+<rect x="60" y="720" width="1360" height="400" rx="12" fill="none" stroke="#3d444d" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="74" y="712" font-size="13" font-weight="600" letter-spacing="0.08em" fill="#9198a1">READ PATH — GET /TIMELINE/HOME</text>
+<path d="M380,212 L380,244" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M380,312 L380,344" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M380,402 L380,434" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M380,502 L380,534" fill="none" stroke="#ff9a5c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-accent)"/>
+<path d="M1100,212 L1100,244" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M1100,312 L1100,344" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M1100,402 L1100,434" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M1100,502 L1100,534" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M380,610 L380,754" fill="none" stroke="#ff9a5c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-accent)"/>
+<path d="M1100,610 L1100,754" fill="none" stroke="#ff9a5c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-accent)"/>
+<path d="M380,830 L380,857 L740,857 L740,884" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M1100,830 L1100,857 L740,857 L740,884" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<path d="M740,960 L740,994" fill="none" stroke="#9198a1" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#ah-edge)"/>
+<rect x="230" y="150" width="300" height="56" rx="10" fill="#12283f" stroke="#4dabf7" stroke-width="1.6"/>
+<text x="380" y="172" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#a9d3fb">@alice tweets</text>
+<text x="380" y="192" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#4dabf7">180 followers</text>
+<rect x="230" y="250" width="300" height="56" rx="10" fill="#241f3d" stroke="#9775fa" stroke-width="1.6"/>
+<text x="380" y="272" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#d0bfff">Tweet Service</text>
+<text x="380" y="292" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9775fa">persist + outbox row</text>
+<rect x="230" y="350" width="300" height="46" rx="10" fill="#332a0f" stroke="#fcc419" stroke-width="1.6"/>
+<text x="380" y="373" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#ffec99">Kafka · tweet.created</text>
+<rect x="230" y="440" width="300" height="56" rx="10" fill="#0f2f36" stroke="#3bc9db" stroke-width="1.6"/>
+<text x="380" y="462" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#99e9f2">Fanout Worker</text>
+<text x="380" y="482" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#3bc9db">followers ≤ 10k → PUSH</text>
+<rect x="230" y="540" width="300" height="64" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="1.6"/>
+<text x="380" y="566" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#c9d1d9">Redis · 180 LPUSH</text>
+<text x="380" y="586" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#8b949e">user:{follower}:home · capped 800</text>
+<rect x="950" y="150" width="300" height="56" rx="10" fill="#12283f" stroke="#4dabf7" stroke-width="1.6"/>
+<text x="1100" y="172" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#a9d3fb">@celebrity tweets</text>
+<text x="1100" y="192" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#4dabf7">40M followers</text>
+<rect x="950" y="250" width="300" height="56" rx="10" fill="#241f3d" stroke="#9775fa" stroke-width="1.6"/>
+<text x="1100" y="272" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#d0bfff">Tweet Service</text>
+<text x="1100" y="292" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9775fa">persist + outbox row</text>
+<rect x="950" y="350" width="300" height="46" rx="10" fill="#332a0f" stroke="#fcc419" stroke-width="1.6"/>
+<text x="1100" y="373" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#ffec99">Kafka · tweet.created</text>
+<rect x="950" y="440" width="300" height="56" rx="10" fill="#0f2f36" stroke="#3bc9db" stroke-width="1.6"/>
+<text x="1100" y="462" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#99e9f2">Fanout Worker</text>
+<text x="1100" y="482" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#3bc9db">followers &gt; 10k → SKIP</text>
+<rect x="950" y="540" width="300" height="64" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="1.6"/>
+<text x="1100" y="566" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#c9d1d9">Redis · 1 LPUSH</text>
+<text x="1100" y="586" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#8b949e">author:{id}:tweets</text>
+<rect x="230" y="760" width="300" height="64" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="1.6"/>
+<text x="380" y="786" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#c9d1d9">LRANGE user:{id}:home</text>
+<text x="380" y="806" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#8b949e">precomputed · 0..49 · ~0.2ms</text>
+<rect x="950" y="760" width="300" height="64" rx="10" fill="#21262d" stroke="#8b949e" stroke-width="1.6"/>
+<text x="1100" y="786" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#c9d1d9">LRANGE author:{c}:tweets</text>
+<text x="1100" y="806" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#8b949e">× the 5–20 celebrities followed</text>
+<rect x="545" y="890" width="390" height="64" rx="10" fill="#0f2f36" stroke="#3bc9db" stroke-width="1.6"/>
+<text x="740" y="916" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#99e9f2">merge-sort, take newest 50</text>
+<text x="740" y="936" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#3bc9db">Snowflake ID order == time order</text>
+<rect x="545" y="1000" width="390" height="64" rx="10" fill="#0f2f36" stroke="#3bc9db" stroke-width="1.6"/>
+<text x="740" y="1026" dy="0.35em" text-anchor="middle" font-size="15" font-weight="600" fill="#99e9f2">hydrate: MGET tweet bodies</text>
+<text x="740" y="1046" dy="0.35em" text-anchor="middle" font-size="11.5" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#3bc9db">one batch · cache-aside · IDs → objects</text>
+<rect x="351.6" y="319" width="56.8" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="380" y="328" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">publish</text>
+<rect x="351.6" y="409" width="56.8" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="380" y="418" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">consume</text>
+<rect x="342" y="509" width="76" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="380" y="518" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff9a5c">180 writes</text>
+<rect x="1071.6" y="319" width="56.8" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="1100" y="328" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">publish</text>
+<rect x="1071.6" y="409" width="56.8" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="1100" y="418" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">consume</text>
+<rect x="1071.6" y="509" width="56.8" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="1100" y="518" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#9198a1">1 write</text>
+<rect x="306.8" y="673" width="146.4" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="380" y="682" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff9a5c">written ahead of time</text>
+<rect x="1030" y="673" width="140" height="18" rx="5" fill="#0d1117" stroke="none"/>
+<text x="1100" y="682" dy="0.35em" text-anchor="middle" font-size="11" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" fill="#ff9a5c">read at request time</text>
+<text x="740" y="417" font-size="13" fill="#ff9a5c" text-anchor="middle">
+<tspan x="740">Same author action.</tspan>
+<tspan x="740" dy="18.849999999999998">Same topic. Same worker.</tspan>
+<tspan x="740" dy="18.849999999999998"></tspan>
+<tspan x="740" dy="18.849999999999998">The two paths diverge on</tspan>
+<tspan x="740" dy="18.849999999999998">ONE follower-count check —</tspan>
+<tspan x="740" dy="18.849999999999998">and that single branch is</tspan>
+<tspan x="740" dy="18.849999999999998">what stops a 40M-follower</tspan>
+<tspan x="740" dy="18.849999999999998">account from issuing 40M</tspan>
+<tspan x="740" dy="18.849999999999998">Redis writes per tweet.</tspan>
+</text>
+<text x="740" y="1152.5" font-size="12.5" fill="#9198a1" text-anchor="middle">
+<tspan x="740">Why it balances: you follow thousands of ordinary accounts but only a handful of celebrities, so the read-side merge stays small —</tspan>
+<tspan x="740" dy="18.125">while celebrities are rare, so skipping their fan-out removes most of the write cost. The two asymmetries cancel out.</tspan>
+<tspan x="740" dy="18.125"></tspan>
+<tspan x="740" dy="18.125">What it costs: two code paths to keep consistent, and an explicit backfill when an account crosses the 10k threshold in either direction.</tspan>
+</text>
+</svg>

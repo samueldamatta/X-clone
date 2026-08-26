@@ -1,0 +1,48 @@
+# --- Personal / local tooling -------------------------------------------------
+# Local Claude Code preferences are per-developer and must never reach a public repo.
+.claude/settings.local.json
+.claude/cache/
+.DS_Store
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- Secrets ------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!**/testdata/*.key
+
+# --- Node / TypeScript --------------------------------------------------------
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.pnpm-store/
+.turbo/
+npm-debug.log*
+pnpm-debug.log*
+
+# --- Go -----------------------------------------------------------------------
+bin/
+vendor/
+*.test
+*.out
+
+# --- Infra / data -------------------------------------------------------------
+# Container volumes are recreated by `docker compose up`; never version their data.
+infra/docker/volumes/
+*.pid
+
+# --- Generated artefacts ------------------------------------------------------
+# Diagram SVGs ARE committed (the README embeds them) — only the generator's
+# intermediate output is ignored.
+docs/diagrams/_generator/node_modules/
+loadtest/results/*.json
+!loadtest/results/.gitkeep
