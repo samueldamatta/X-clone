@@ -1,0 +1,62 @@
+# OpenTelemetry Collector — the single hop every service ships to.
+#
+# Services never talk to Jaeger or Prometheus directly. That indirection costs
+# one container and buys the ability to change backends, add sampling, or scrub
+# an attribute in one place instead of in nine services.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Amortises export overhead across spans. Without it, a service under load
+  # opens one export per span and the collector becomes the bottleneck it exists
+  # to prevent.
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  # A collector that dies under a traffic spike takes the telemetry for that
+  # spike with it — precisely when it is needed.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 384
+    spike_limit_mib: 96
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  # Exposes an endpoint for Prometheus to scrape, rather than pushing.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  debug:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+  telemetry:
+    logs:
+      level: warn

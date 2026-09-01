@@ -10,8 +10,8 @@ this project exists; a pretty timeline over a naive query would not be.
 
 | # | Phase | Ships | Teaches |
 |---|---|---|---|
-| 0 | **Design & documentation** | Diagrams, ADRs, capacity model, this roadmap | Deciding boundaries while they are still cheap to move |
-| 1 | Infrastructure baseline | `docker compose up` brings up Postgres, Redis, Redpanda, MinIO, OpenSearch, Jaeger, Prometheus, Grafana; monorepo with pnpm workspaces + Go modules; CI | Running a distributed environment locally |
+| 0 | ~~Design & documentation~~ | Diagrams, ADRs, capacity model, this roadmap | Deciding boundaries while they are still cheap to move |
+| 1 | **Infrastructure baseline** ← *here* | `docker compose up` brings up Postgres, Redis, Redpanda, MinIO, OpenSearch, Jaeger, Prometheus, Grafana; monorepo with pnpm workspaces + Go modules; CI | Running a distributed environment locally |
 | 2 | Identity + Gateway | Register, log in, refresh rotation, rate limiting, first end-to-end request | JWT vs sessions, token rotation, token-bucket limiting |
 | 3 | Tweet + Graph | Post and delete tweets; follow and unfollow; first gRPC call; first outbox row | Snowflake IDs, the outbox pattern, protobuf contracts |
 | 4 | **Fanout Worker + Timeline API** | A working home timeline with the hybrid split | Kafka consumers, idempotency, hybrid fan-out, consumer lag — **the centrepiece** |

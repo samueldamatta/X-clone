@@ -34,6 +34,11 @@ bin/
 vendor/
 *.test
 *.out
+# `go build ./...` writes the binary into the module root, named after the
+# package. scripts/go-check.sh builds elsewhere; this catches the manual run.
+backend/services/*/graph
+backend/services/*/timeline
+backend/services/*/fanout-worker
 
 # --- Infra / data -------------------------------------------------------------
 # Container volumes are recreated by `docker compose up`; never version their data.

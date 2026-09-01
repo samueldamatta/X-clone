@@ -114,17 +114,28 @@ pkg/                  # only if genuinely shared across services
 ## Commands
 
 ```bash
-# Infrastructure (Phase 1 onward)
-docker compose -f infra/docker/compose.yml up -d
-docker compose -f infra/docker/compose.yml down -v    # -v resets all data
+# Infrastructure
+pnpm preflight     # is every port free? names who holds the ones that are not
+pnpm up            # core: 8 containers, ~1.2 GB
+pnpm up:full       # + MinIO (Phase 6) and OpenSearch (Phase 8), ~1 GB more
+pnpm smoke         # 15 assertions that the environment works, not just runs
+pnpm down          # stop, keep data
+pnpm reset         # down -v — destroys every volume
 
 # Diagrams
-node docs/diagrams/_generator/build.mjs
+pnpm diagrams
 
 # Per service
 pnpm --filter <service> dev | test | lint     # NestJS
-go test ./... && go vet ./...                  # Go
+./scripts/go-check.sh                          # every Go module: fmt, vet, build, test
+```
 
+**`go vet ./...` does not work from the repo root.** In a Go workspace a relative
+pattern only resolves if the directory prefix contains a module, and nothing above
+`backend/services/<svc>` does. Run it from inside a module, or use
+`scripts/go-check.sh`, which iterates `go list -m`.
+
+```bash
 # Load tests (Phase 10)
 k6 run loadtest/timeline-read.js
 ```
@@ -143,7 +154,7 @@ Item 5 rots first, and documentation that lies is worse than none because it is 
 
 ## Working notes
 
-- **Go is not installed yet.** `brew install go` before Phase 3.
+- Go 1.27, Node 22 and pnpm 10 are installed; `go.work` spans the three Go services.
 - Current phase and what comes next: [`docs/05-roadmap.md`](docs/05-roadmap.md)
 - The numbers behind every architectural decision:
   [`docs/02-capacity-estimation.md`](docs/02-capacity-estimation.md)

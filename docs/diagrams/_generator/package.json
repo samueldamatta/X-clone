@@ -1,0 +1,6 @@
+{
+  "name": "@x-clone/diagram-generator",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency diagram generator. Not a pnpm workspace member on purpose: it must keep running without a lockfile."
+}

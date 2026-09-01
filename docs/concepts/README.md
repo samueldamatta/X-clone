@@ -19,6 +19,12 @@ These are written to be read in order the first time, and dug into individually 
 | [Snowflake IDs](snowflake-ids.md) | Why not just use a UUID? |
 | [CQRS](cqrs.md) | Why is the same tweet stored in four different shapes? |
 
+## The ground it all runs on
+
+| Concept | The question it answers |
+|---|---|
+| [The local environment](local-environment.md) | How do nine services and six data stores run on one laptop, the same way in CI? |
+
 ## The two that make the above survivable
 
 | Concept | The question it answers |

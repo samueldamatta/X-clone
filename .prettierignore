@@ -1,0 +1,18 @@
+pnpm-lock.yaml
+dist/
+build/
+.next/
+coverage/
+# Generated from docs/diagrams/_generator/scenes/ — reformatting them would
+# produce a diff on every build with no change in content.
+docs/diagrams/*.svg
+docs/diagrams/*.excalidraw
+
+# Prose and tables are hand-wrapped at ~90 columns on purpose. Prettier reflows
+# markdown tables and would fight every doc edit.
+*.md
+
+# The scene specs are layout data: one line per node is what makes them readable,
+# and Prettier explodes them into 8-line objects. The diagrams CI job already
+# proves the generator works; formatting it buys nothing.
+docs/diagrams/_generator/

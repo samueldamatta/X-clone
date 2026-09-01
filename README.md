@@ -20,9 +20,12 @@ an asynchronous event backbone, Snowflake IDs, and CQRS.
 > tiers and a trigger table naming the measured threshold at which each component stops
 > being premature.
 
-**Status:** Phase 0 — system design. No application code yet, by design: in a distributed
-system the expensive mistakes are the service boundaries and the shape of the data flow,
-and those are nearly free to change in a diagram.
+**Status:** Phase 1 — infrastructure baseline. One `docker compose up` brings up Postgres,
+Redis, Redpanda and the observability stack, all healthchecked, with a smoke test that
+asserts the pipeline actually works rather than that the containers are running. Services
+themselves start in Phase 2: in a distributed system the expensive mistakes are the service
+boundaries and the shape of the data flow, and those were nearly free to change while they
+were still a diagram.
 
 ## The interesting problem
 
@@ -116,8 +119,8 @@ anyone can list patterns; knowing what each takes from you is the part that tran
 
 | # | Phase | Teaches |
 |---|---|---|
-| 0 | **Design & documentation** ← *here* | Deciding boundaries while they are cheap to move |
-| 1 | Infrastructure baseline | Running a distributed environment locally |
+| 0 | ~~Design & documentation~~ | Deciding boundaries while they are cheap to move |
+| 1 | **Infrastructure baseline** ← *here* | Running a distributed environment locally |
 | 2 | Identity + Gateway | Token rotation, token-bucket rate limiting |
 | 3 | Tweet + Graph | Snowflake IDs, the outbox pattern, protobuf contracts |
 | 4 | **Fanout Worker + Timeline API** | Hybrid fan-out, Kafka consumers, idempotency |
@@ -144,14 +147,44 @@ result.
 
 ## Local development
 
-```bash
-node docs/diagrams/_generator/build.mjs      # rebuild the diagrams
+**Requires** Docker, Node 20+, pnpm 9+, and Go 1.24+.
 
-# From Phase 1:
-docker compose -f infra/docker/compose.yml up -d
+```bash
+cp .env.example .env
+pnpm install
+
+pnpm preflight     # every port free? names who holds the ones that are not
+pnpm up            # 8 containers, ~1.2 GB, healthy in ~20 s
+pnpm smoke         # 15 assertions that the environment actually works
 ```
 
-Port map and container topology: [`docs/diagrams/03-local-environment-light.svg`](docs/diagrams/).
+`pnpm up` starts the core set. MinIO and OpenSearch are not consumed until Phases 6 and 8
+and hold ~1 GB between them, so they sit behind profiles:
+
+```bash
+pnpm up:full       # + MinIO and OpenSearch
+pnpm down          # stop, keep data
+pnpm reset         # stop and destroy every volume
+```
+
+| | | | |
+|---|---|---|---|
+| Grafana | [:3001](http://localhost:3001) | Postgres | `:5432` |
+| Jaeger | [:16686](http://localhost:16686) | Redis | `:6379` |
+| Prometheus | [:9090](http://localhost:9090) | Kafka (Redpanda) | `:9092` |
+| Redpanda Console | [:8090](http://localhost:8090) | OTLP | `:4317` gRPC · `:4318` HTTP |
+
+The full port map lives in
+[`docs/diagrams/03-local-environment-light.svg`](docs/diagrams/), which is the source of
+truth `compose.yml` follows — not the other way round. `pnpm preflight` enforces it: ports
+are global state on a laptop, and `bind: address already in use` is a bad way to find that
+out.
+
+Why these containers and not a VM or a local Kubernetes cluster — and the two things that
+are not obvious about wiring them (Kafka's advertised listeners, and why a healthcheck is
+not a readiness check) — are in
+[`docs/concepts/local-environment.md`](docs/concepts/local-environment.md). What each
+configuration file teaches its container is in [`infra/README.md`](infra/README.md).
 
 ## License
 

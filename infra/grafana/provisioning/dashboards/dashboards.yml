@@ -1,0 +1,16 @@
+# Dashboard provider. The dashboards themselves land in Phase 9, when there are
+# services emitting something worth plotting.
+
+apiVersion: 1
+
+providers:
+  - name: xclone
+    orgId: 1
+    folder: X-clone
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

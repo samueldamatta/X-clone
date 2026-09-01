@@ -1,0 +1,29 @@
+{
+  "name": "x-clone",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@10.30.0",
+  "scripts": {
+    "up": "docker compose -f infra/docker/compose.yml up -d",
+    "up:full": "docker compose -f infra/docker/compose.yml --profile full up -d",
+    "down": "docker compose -f infra/docker/compose.yml down",
+    "reset": "docker compose -f infra/docker/compose.yml --profile full down -v",
+    "logs": "docker compose -f infra/docker/compose.yml logs -f",
+    "preflight": "./scripts/preflight.sh",
+    "smoke": "./scripts/smoke.sh",
+    "diagrams": "node docs/diagrams/_generator/build.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build"
+  },
+  "devDependencies": {
+    "prettier": "3.3.3"
+  }
+}

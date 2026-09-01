@@ -1,0 +1,276 @@
+# X-clone local environment.
+#
+# Port assignments come from docs/diagrams/03-local-environment-light.svg and are
+# not re-decided here. If a port changes, the diagram scene changes with it —
+# a port map that only exists in this file is a port map nobody reads.
+#
+#   docker compose -f infra/docker/compose.yml up -d          # core, 8 containers
+#   docker compose -f infra/docker/compose.yml --profile media up -d
+#   docker compose -f infra/docker/compose.yml --profile search up -d
+#   docker compose -f infra/docker/compose.yml --profile full up -d
+#   docker compose -f infra/docker/compose.yml down -v         # -v resets all data
+#
+# MinIO and OpenSearch sit behind profiles because nothing consumes them until
+# Phase 6 and Phase 8. They cost ~2 GB of RAM to leave running in the meantime.
+#
+# Every container's configuration lives in infra/<tool>/ — one directory per tool,
+# mounted read-only. This file holds the topology and nothing else.
+
+name: xclone
+
+networks:
+  xclone:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  redpanda-data:
+  opensearch-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+  # --- Data stores ------------------------------------------------------------
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: xclone-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: xclone
+      # Deterministic collation, so ORDER BY on handles does not depend on the
+      # host's locale. A sort that differs between two developers' machines is a
+      # bug that takes a day to find.
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Runs once, on an empty data directory only. See 01-schemas.sql.
+      - ../postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d xclone']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [xclone]
+
+  redis:
+    image: redis:7-alpine
+    container_name: xclone-redis
+    restart: unless-stopped
+    # No AOF, no RDB. Every Redis key in this system is a cache
+    # (docs/03-data-model.md) — if losing Redis lost data, the design is wrong.
+    # Turning persistence off makes that claim testable instead of aspirational:
+    # `docker compose restart redis` is now a real cold-cache drill.
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [xclone]
+
+  # --- Event backbone ---------------------------------------------------------
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    container_name: xclone-redpanda
+    restart: unless-stopped
+    # Two listeners, because a Kafka client connects twice: once to bootstrap,
+    # then again to whatever address the broker *advertises*. A container on the
+    # xclone network must be told "redpanda:9092"; a client on the host must be
+    # told "localhost:9092". One advertised address cannot satisfy both, and
+    # getting this wrong produces the classic failure where metadata succeeds and
+    # every produce times out.
+    command:
+      - redpanda
+      - start
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:9092
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+      - --schema-registry-addr=0.0.0.0:8081
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --mode=dev-container
+      - --smp=1
+      - --default-log-level=warn
+    ports:
+      # Host sees 9092 (as the diagram says); inside, that is the external listener.
+      - '9092:19092'
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ['CMD-SHELL', "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks: [xclone]
+
+  redpanda-console:
+    image: redpandadata/console:v2.7.2
+    container_name: xclone-redpanda-console
+    restart: unless-stopped
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_SCHEMAREGISTRY_ENABLED: 'true'
+      KAFKA_SCHEMAREGISTRY_URLS: http://redpanda:8081
+    ports:
+      - '8090:8080'
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    networks: [xclone]
+
+  # --- Observability ----------------------------------------------------------
+
+  # Every service ships to the collector, never straight to a backend. Swapping
+  # Jaeger for Tempo later costs one config file here, not nine service configs.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    container_name: xclone-otel-collector
+    restart: unless-stopped
+    command: ['--config=/etc/otel/collector.yml']
+    volumes:
+      - ../otel/collector.yml:/etc/otel/collector.yml:ro
+    ports:
+      - '4317:4317' # OTLP gRPC
+      - '4318:4318' # OTLP HTTP
+    expose:
+      - '8889' # Prometheus scrape target, internal only
+    depends_on:
+      - jaeger
+    healthcheck:
+      test: ['CMD', '/otelcol-contrib', '--help']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [xclone]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: xclone-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+      SPAN_STORAGE_TYPE: memory
+    ports:
+      - '16686:16686' # UI
+      # 4317/4318 are deliberately NOT published: the collector owns those on the
+      # host. Jaeger still listens on them inside the network, which is how the
+      # collector reaches it.
+    networks: [xclone]
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: xclone-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - '9090:9090'
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:9090/-/healthy']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [xclone]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: xclone-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      # Skips the login screen on a local instance that holds nothing private.
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - '3001:3000' # 3000 belongs to the Next.js frontend
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --spider -q http://localhost:3000/api/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [xclone]
+
+  # --- Deferred: nothing consumes these until Phase 6 and Phase 8 -------------
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    container_name: xclone-minio
+    profiles: ['media', 'full']
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [xclone]
+
+  opensearch:
+    image: opensearchproject/opensearch:2.17.1
+    container_name: xclone-opensearch
+    profiles: ['search', 'full']
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: 'true'
+      OPENSEARCH_JAVA_OPTS: '-Xms512m -Xmx512m'
+      # Local only. The security plugin would add TLS and a mandatory admin
+      # password to an instance reachable from nowhere but this bridge network.
+      DISABLE_SECURITY_PLUGIN: 'true'
+      DISABLE_INSTALL_DEMO_CONFIG: 'true'
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports:
+      - '9200:9200'
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9200/_cluster/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    networks: [xclone]

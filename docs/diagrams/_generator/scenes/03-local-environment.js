@@ -23,7 +23,7 @@ export default {
   title: 'X-clone — Local Development Environment',
   subtitle: 'One `docker compose up` · every port assigned once, here, before any of it is written',
   width: 1480,
-  height: 950,
+  height: 1010,
 
   frames: [
     { label: 'Application containers', x: 40, y: 110, w: 1400, h: 250 },
@@ -47,8 +47,8 @@ export default {
     { id: 'pg', kind: 'store', ...infra[0], label: 'postgres', sub: ':5432 · schema per svc' },
     { id: 'redis', kind: 'store', ...infra[1], label: 'redis', sub: ':6379' },
     { id: 'redpanda', kind: 'broker', ...infra[2], label: 'redpanda', sub: ':9092 · console :8090' },
-    { id: 'opensearch', kind: 'store', ...infra[3], label: 'opensearch', sub: ':9200' },
-    { id: 'minio', kind: 'store', ...infra[4], label: 'minio', sub: ':9000 · console :9001' },
+    { id: 'opensearch', kind: 'store', ...infra[3], label: 'opensearch', sub: ':9200 · --profile search' },
+    { id: 'minio', kind: 'store', ...infra[4], label: 'minio', sub: ':9000/:9001 · --profile media' },
 
     { id: 'otelcol', kind: 'observability', x: 580, y: 586, w: 320, h: 64, label: 'otel-collector', sub: 'OTLP :4317 / :4318' },
     { id: 'jaeger', kind: 'observability', ...obsBackends[0], label: 'jaeger', sub: 'UI :16686' },
@@ -70,7 +70,7 @@ export default {
       align: 'center',
       size: 12.5,
       text:
-        'Redpanda replaces Kafka locally: same protocol and client libraries, one binary, no ZooKeeper, a fraction of the RAM.\nProduction targets real Kafka — nothing in application code knows the difference.\n\nEvery service ships traces and metrics to the collector, never straight to a backend. Swapping Jaeger for Tempo then costs one config file, not nine.',
+        'Redpanda replaces Kafka locally: same protocol and client libraries, one binary, no ZooKeeper, a fraction of the RAM.\nProduction targets real Kafka — nothing in application code knows the difference.\n\nEvery service ships traces and metrics to the collector, never straight to a backend. Swapping Jaeger for Tempo then costs one config file, not nine.\n\nMinIO and OpenSearch sit behind compose profiles — nothing consumes them until Phases 6 and 8, and they hold ~1 GB between them.',
     },
   ],
 };

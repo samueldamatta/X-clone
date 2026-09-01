@@ -1,0 +1,25 @@
+# Scrape configuration.
+#
+# Only targets that actually exist are listed. A permanently-down target paints
+# the dashboard red and trains you to ignore red, which is worse than having no
+# dashboard. Services are added here by the phase that introduces them.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: local
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Application metrics arrive here, forwarded by the collector's OTLP receiver.
+  - job_name: otel-collector
+    static_configs:
+      - targets: ['otel-collector:8889']
+
+  # Phase 3: graph (Go, gRPC :50051) and tweet (NestJS :8082)
+  # Phase 4: timeline (:8086), fanout-worker (metrics :9101)
+  # Phase 2: gateway (:8080), identity (:8081)

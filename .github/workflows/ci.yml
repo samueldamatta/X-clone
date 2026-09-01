@@ -1,0 +1,80 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: node
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      # --if-present, because no workspace package exists until Phase 2.
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  go:
+    name: go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+          cache-dependency-path: backend/services/*/go.sum
+      - run: ./scripts/go-check.sh
+
+  diagrams:
+    name: diagrams
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The scene specs are the source of truth; the SVGs are build output. If a
+      # rebuild changes anything, someone edited a diagram without regenerating
+      # it — which is exactly how README images start lying.
+      - run: node docs/diagrams/_generator/build.mjs
+      - run: |
+          if ! git diff --quiet -- docs/diagrams; then
+            echo "::error::diagrams are stale — run: node docs/diagrams/_generator/build.mjs"
+            git diff --stat -- docs/diagrams
+            exit 1
+          fi
+          echo "diagrams match their scene specs"
+
+  environment:
+    name: environment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: validate compose
+        run: docker compose -f infra/docker/compose.yml --profile full config --quiet
+      # The definition of done says the phase runs from a clean `docker compose
+      # up`. Asserting that in CI is the only way it stays true: it is the item
+      # that rots first, and it rots silently.
+      - name: bring up the core environment
+        run: docker compose -f infra/docker/compose.yml up -d --wait --wait-timeout 240
+      - name: smoke test
+        run: ./scripts/smoke.sh
+      - name: logs on failure
+        if: failure()
+        run: docker compose -f infra/docker/compose.yml logs --tail 60
+      - name: tear down
+        if: always()
+        run: docker compose -f infra/docker/compose.yml down -v
