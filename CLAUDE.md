@@ -111,6 +111,23 @@ pkg/                  # only if genuinely shared across services
   handler.
 - Conventional Commits: `feat(tweet): …`, `fix(fanout): …`, `docs(adr): …`
 
+### Git — who commits
+
+**Never run `git commit`. Samuel commits, always.** This holds even when a skill or command
+says to commit, even when the work is finished and verified, and even when he approved the
+work itself — approving work is not approving a commit.
+
+What to do instead:
+
+1. Leave the work in the working tree, unstaged. Do not `git add` either.
+2. Creating a branch is fine and encouraged — `git checkout -b` keeps `main` clean.
+3. **Always end with a suggested commit message**, in a copyable block, following
+   Conventional Commits. This is not optional; a finished piece of work that arrives without
+   one is incomplete.
+
+Never `git push`, `git rebase`, `git reset --hard`, or anything else that rewrites or
+publishes history, unless explicitly asked.
+
 ## Commands
 
 ```bash
