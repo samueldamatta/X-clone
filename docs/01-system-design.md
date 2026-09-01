@@ -246,4 +246,4 @@ Named so that nobody has to guess whether they were forgotten:
 - [`02-capacity-estimation.md`](02-capacity-estimation.md) — the numbers behind every choice above
 - [`03-data-model.md`](03-data-model.md) — schemas, keys, and denormalisation
 - [`04-api-contracts.md`](04-api-contracts.md) — the REST edge and internal gRPC surface
-- [`adr/`](adr/) — the five decisions, with what was rejected and why
+- [`adr/`](adr/) — every decision, with what was rejected and why

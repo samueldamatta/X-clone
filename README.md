@@ -107,7 +107,7 @@ Written to be read in this order.
 | [Data model](docs/03-data-model.md) | Schemas, keys, denormalisation, sharding plan |
 | [API contracts](docs/04-api-contracts.md) | REST edge, internal gRPC, Kafka event contracts |
 | [Roadmap](docs/05-roadmap.md) | Twelve phases, and what each one teaches |
-| [ADRs](docs/adr/) | Five decisions, each with what was rejected and at what cost |
+| [ADRs](docs/adr/) | Every decision, each with what was rejected and at what cost |
 | [Concepts](docs/concepts/) | The ideas themselves — problem, options, choice, **cost** |
 | [Diagrams](docs/diagrams/) | Sources, and how to rebuild them |
 
