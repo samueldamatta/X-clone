@@ -7,6 +7,9 @@
 --
 -- This file runs only on an empty data directory. `docker compose down -v` is
 -- what replays it.
+--
+-- Why the split exists, and what putting schema and role creation in migrations
+-- would have cost: docs/adr/0007-bootstrap-versus-service-migrations.md
 
 -- CITEXT backs identity.users.handle: case-insensitive by type rather than by
 -- every query remembering to call lower(). See docs/03-data-model.md.

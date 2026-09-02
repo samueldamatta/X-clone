@@ -102,6 +102,12 @@ cascading.
 
 ## Per-service schemas
 
+The SQL below is the shape, not the source. None of these tables come from the database
+bootstrap, which creates schemas, roles and extensions and stops there — they arrive through
+the owning service's migrations, run under that service's own restricted role.
+[ADR 0007](adr/0007-bootstrap-versus-service-migrations.md) records why the split exists and
+what putting schema creation in migrations would have cost.
+
 ### Identity — `identity.*`
 
 ```sql
@@ -257,6 +263,8 @@ already in the identifier.
 ## See also
 
 - [`01-system-design.md`](01-system-design.md) — how these tables are read and written
+- [ADR 0007](adr/0007-bootstrap-versus-service-migrations.md) — where this DDL actually
+  lives, and why the bootstrap holds none of it
 - [`concepts/snowflake-ids.md`](concepts/snowflake-ids.md)
 - [`concepts/transactional-outbox.md`](concepts/transactional-outbox.md)
 - [`concepts/cqrs.md`](concepts/cqrs.md)
