@@ -55,7 +55,10 @@ read its timestamp.
   from compose before that
 - The generator refuses to issue ids when it detects the clock moving backwards, rather
   than risking duplicates
-- Cross-language tests asserting Go and TypeScript agree on encoding and decoding
+- One shared library rather than one implementation per service, so there is a single place
+  where "unique" is either true or false
+- The generator refuses to start when its node id is missing, non-numeric or outside
+  0–1023, so a misconfigured instance fails at boot instead of on live data
 
 ## Alternatives considered
 
@@ -72,7 +75,29 @@ alternative. Rejected here for 128 bits against 64: at 3M materialised timelines
 entries, that difference is roughly 10 GB of Redis. Snowflake is also what Twitter actually
 built, which matters for a project whose purpose is to understand Twitter.
 
+## Amendments
+
+**2026-09-02 — this is a TypeScript-only library, and there are no cross-language tests.**
+
+The original "Mitigated by" list promised cross-language tests asserting that Go and
+TypeScript agree on encoding and decoding. Building it revealed there is nothing to agree
+with. Every service that *mints* an identifier is NestJS — identity, tweet, media,
+notification. The three Go services mint none: `follows` is keyed by the pair of
+participants, and timeline and fanout-worker only move identifiers minted elsewhere.
+
+So there is one implementation, [`@x-clone/snowflake`](../../backend/libs/snowflake), and
+no second one to disagree with it. **What this costs:** the day a Go service does need to
+mint identifiers, the algorithm has to be ported and two implementations kept in step —
+including the epoch below, where a one-digit disagreement would be invisible until the
+orderings diverged.
+
+**The epoch is 2026-01-01T00:00:00Z** and is not configurable. Counting from the Unix
+epoch would spend most of the 41 bits before the project starts, expiring in 2039;
+counting from 2026 runs to 2095. It can never change: every identifier already issued
+decodes against it.
+
 ## See also
 
 - [`concepts/snowflake-ids.md`](../concepts/snowflake-ids.md)
 - [`03-data-model.md`](../03-data-model.md#identifiers)
+- [`../../backend/libs/snowflake`](../../backend/libs/snowflake) — the implementation

@@ -121,8 +121,8 @@ anyone can list patterns; knowing what each takes from you is the part that tran
 |---|---|---|
 | 0 | ~~Design & documentation~~ | Deciding boundaries while they are cheap to move |
 | 1 | **Infrastructure baseline** ← *here* | Running a distributed environment locally |
-| 2 | Identity + Gateway | Token rotation, token-bucket rate limiting |
-| 3 | Tweet + Graph | Snowflake IDs, the outbox pattern, protobuf contracts |
+| 2 | Identity + Gateway | Snowflake IDs, token rotation, token-bucket rate limiting |
+| 3 | Tweet + Graph | The outbox pattern, protobuf contracts |
 | 4 | **Fanout Worker + Timeline API** | Hybrid fan-out, Kafka consumers, idempotency |
 | 5 | Frontend | Infinite scroll, designing around eventual consistency |
 | 6 | Media | Keeping bytes off the API path; failure isolation |
