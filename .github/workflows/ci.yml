@@ -22,8 +22,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
-      # --if-present, because no workspace package exists until Phase 2.
+      # One flat config at the root covers every package, so this is a single
+      # eslint run rather than a recursive one.
       - run: pnpm lint
+      # Vitest transpiles without type-checking, so a type error passes the
+      # test run. Checking types is a separate step or it does not happen.
+      - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
 

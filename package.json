@@ -19,11 +19,16 @@
     "diagrams": "node docs/diagrams/_generator/build.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "pnpm -r --if-present lint",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "build": "pnpm -r --if-present build"
   },
   "devDependencies": {
-    "prettier": "3.3.3"
+    "@eslint/js": "10.0.1",
+    "eslint": "10.9.1",
+    "prettier": "3.3.3",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.69.0"
   }
 }

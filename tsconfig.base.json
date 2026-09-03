@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    // ES2023 is comfortably below what Node 22 supports, so nothing is
+    // downlevelled and stack traces point at code that looks like the source.
+    "target": "ES2023",
+    "lib": ["ES2023"],
+
+    // CommonJS, because NestJS is: the framework's DI and its `@nestjs/cli`
+    // build both assume `require`. A library that four Nest services import
+    // has to be loadable by them.
+    "module": "commonjs",
+    "moduleResolution": "node",
+
+    // Consumers get types and can step into this package's source in a
+    // debugger rather than into its compiled output.
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    "strict": true,
+    // `arr[0]` is `T | undefined`, not `T`. Verbose, and it is the setting
+    // that catches the off-by-one this repository would most regret.
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    // Each file compiles alone — which is what Vitest's esbuild transform and
+    // any future SWC build already assume. Making it explicit means the
+    // type-checker rejects what those transforms would silently miscompile.
+    "isolatedModules": true,
+    "skipLibCheck": true
+  }
+}
