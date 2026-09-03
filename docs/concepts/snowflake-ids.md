@@ -104,7 +104,56 @@ project whose purpose is understanding Twitter.
 
 - Decision: [ADR 0005](../adr/0005-snowflake-ids.md)
 - Layout: [`03-data-model.md`](../03-data-model.md#identifiers)
-- Implemented in Phase 3, in both Go and TypeScript, with cross-language tests
+- Implemented in Phase 2 as [`@x-clone/snowflake`](../../backend/libs/snowflake), one
+  workspace library in TypeScript only
+- Epoch: **2026-01-01T00:00:00Z**. Counting from 1970 would leave the 41 bits expiring in
+  2039; counting from 2026 runs to 2095. The number can never change — every identifier
+  already issued decodes against it, so moving it would reorder the past
+
+### Why TypeScript only
+
+Every service that *mints* an identifier is NestJS: identity, tweet, media and
+notification. The three Go services mint none — `follows` is keyed by the pair of
+participants, and timeline and fanout-worker only ever move identifiers minted elsewhere.
+So the cross-language problem that looked unavoidable does not exist, and there are no
+cross-language tests because there is no second implementation to disagree with.
+
+If a Go service ever needs to mint one, the algorithm above is small enough to port. The
+cost of that day is two implementations kept in step, and it is worth naming now rather
+than discovering then.
+
+### Using it
+
+```ts
+import { SnowflakeGenerator, nodeIdFromEnv } from '@x-clone/snowflake';
+
+// At the entry point, before anything is wired. Throws if SNOWFLAKE_NODE_ID is
+// missing, non-numeric, or outside 0..1023.
+const generator = new SnowflakeGenerator({ nodeId: nodeIdFromEnv(process.env) });
+
+generator.next(); // '83886080000028673' — a string, always
+```
+
+Three things the library refuses to do, each because the alternative is a duplicate
+identifier nobody notices:
+
+| Condition | What happens |
+|---|---|
+| `SNOWFLAKE_NODE_ID` missing, non-numeric or outside 0–1023 | Throws at startup, naming the variable and the value |
+| The clock moved backwards | Throws, rather than reissuing a millisecond it has already spent |
+| The host's clock predates the 2026 epoch | Throws at construction — a negative timestamp inverts the ordering everything else leans on |
+
+The one thing it does *not* refuse is a burst past 4,096 in a millisecond: there it
+busy-waits for the clock to move. That blocks the event loop, which is a real cost on a
+single-threaded runtime, but it is bounded by whatever is left of the current millisecond.
+
+### The node id is per instance, not per service
+
+This is the part that is easy to get wrong. Two replicas of the tweet service sharing
+`SNOWFLAKE_NODE_ID=3` do not fail, do not warn, and do not slow down — they just issue the
+same identifier to two different tweets whenever both mint inside the same millisecond,
+and the collision surfaces later as a duplicate key on live data. Which is exactly why the
+value is validated at boot and the service refuses to start without it.
 
 ## Related
 
