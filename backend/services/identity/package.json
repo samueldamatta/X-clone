@@ -7,10 +7,30 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/infrastructure/persistence/migrations dist/infrastructure/persistence/migrations",
+    "start": "node dist/main.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node dist/infrastructure/persistence/migrate.js"
   },
   "devDependencies": {
+    "@types/pg": "8.15.6",
+    "drizzle-kit": "0.31.10",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "1.13.4",
+    "@grpc/proto-loader": "0.8.0",
+    "@nestjs/common": "11.1.6",
+    "@nestjs/core": "11.1.6",
+    "@nestjs/microservices": "11.1.6",
+    "@x-clone/drizzle-snowflake": "workspace:*",
+    "@x-clone/proto": "workspace:*",
+    "@x-clone/snowflake": "workspace:*",
+    "argon2": "0.44.0",
+    "drizzle-orm": "0.45.2",
+    "pg": "8.23.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
   }
 }

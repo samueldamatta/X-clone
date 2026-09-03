@@ -58,9 +58,20 @@ BEGIN
       'ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT USAGE, SELECT ON SEQUENCES TO %I',
       svc, svc || '_svc');
 
-    -- Resolve unqualified names to the service's own schema, so a query that
-    -- forgets to qualify a table fails loudly instead of finding a public one.
-    EXECUTE format('ALTER ROLE %I SET search_path TO %I', svc || '_svc', svc);
+    -- Resolve unqualified names to the service's own schema first, so a
+    -- query that forgets to qualify a table fails loudly instead of
+    -- finding a public one. "public" is appended, not omitted: CITEXT's
+    -- operators (=, <, ILIKE-equivalents) live in the schema the extension
+    -- was installed into — public, Postgres's default — and operator
+    -- resolution only considers schemas on the search_path. Without it,
+    -- `handle = 'SAM'` on an identity.users.handle column silently falls
+    -- back to a case-sensitive text comparison after an implicit cast,
+    -- even though the column's declared type is still citext. Confirmed
+    -- with `'SAM'::public.citext = 'sam'::public.citext`, which returns
+    -- false under search_path=identity and true under
+    -- search_path=identity,public. REVOKE CREATE ON SCHEMA public below
+    -- still stands, so this adds visibility, not write access.
+    EXECUTE format('ALTER ROLE %I SET search_path TO %I, public', svc || '_svc', svc);
   END LOOP;
 END
 $$;
