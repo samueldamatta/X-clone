@@ -5,11 +5,16 @@
     "target": "ES2023",
     "lib": ["ES2023"],
 
-    // CommonJS, because NestJS is: the framework's DI and its `@nestjs/cli`
-    // build both assume `require`. A library that four Nest services import
-    // has to be loadable by them.
-    "module": "commonjs",
-    "moduleResolution": "node",
+    // Still CommonJS output, because NestJS is: the framework's DI and its
+    // `@nestjs/cli` build both assume `require`. A library that four Nest
+    // services import has to be loadable by them.
+    //
+    // `node16` rather than the older `commonjs`/`node` pair: TypeScript 6
+    // deprecates that resolution mode, and node16 is what actually reads the
+    // `exports` map in a package.json. No package here sets `"type": "module"`,
+    // so every file still compiles as CommonJS.
+    "module": "node16",
+    "moduleResolution": "node16",
 
     // Consumers get types and can step into this package's source in a
     // debugger rather than into its compiled output.
