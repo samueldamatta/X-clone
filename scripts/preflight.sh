@@ -20,6 +20,8 @@ PORTS="
 6379 redis
 9092 redpanda
 8090 redpanda-console
+8080 gateway app
+8081 identity app
 4317 otel-collector-grpc
 4318 otel-collector-http
 16686 jaeger-ui

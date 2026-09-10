@@ -134,6 +134,7 @@ publishes history, unless explicitly asked.
 # Infrastructure
 pnpm preflight     # is every port free? names who holds the ones that are not
 pnpm up            # core: 8 containers, ~1.2 GB
+pnpm up:app        # + gateway and identity as containers (CI's path, not the daily one)
 pnpm up:full       # + MinIO (Phase 6) and OpenSearch (Phase 8), ~1 GB more
 pnpm smoke         # 15 assertions that the environment works, not just runs
 pnpm down          # stop, keep data

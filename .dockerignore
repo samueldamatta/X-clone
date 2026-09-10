@@ -1,0 +1,30 @@
+# The build context is the repository root (see infra/docker/compose.yml), so
+# without this every image build would upload the whole monorepo — node_modules
+# included, which is both the largest directory here and the one that must not
+# survive the trip: it holds symlinks into a pnpm store that does not exist
+# inside the image, and native modules built for the host's libc.
+node_modules
+**/node_modules
+
+# Build output is produced inside the image, from source. Copying the host's
+# would make an image that differs from a clean build with no way to tell.
+dist
+**/dist
+.next
+**/.next
+
+.git
+.github
+docs
+loadtest
+infra/grafana
+infra/prometheus
+infra/k8s
+**/*.log
+.DS_Store
+**/.DS_Store
+
+# Local secrets and machine-specific settings. .env.example stays, since it is
+# documentation; .env is per-developer and never belongs in an image.
+.env
+.claude
