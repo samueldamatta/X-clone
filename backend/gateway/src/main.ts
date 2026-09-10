@@ -3,10 +3,19 @@ import { NestFactory } from '@nestjs/core';
 import { ProblemDetailsFilter } from '@x-clone/problem-details';
 import { buildAppModule } from './app.module';
 import { loadConfig } from './infrastructure/config/env';
+import { jsonBody, jsonBodyFailures } from './presentation/http/json-body';
 
 async function bootstrap(): Promise<void> {
   const config = loadConfig();
-  const app = await NestFactory.create(buildAppModule(config));
+
+  // bodyParser: false, then the same parser registered by hand — see
+  // json-body.ts. Nest's built-in one rethrows a parse failure as a
+  // BadRequestException carrying V8's message, which quotes the request
+  // body back at the caller.
+  const app = await NestFactory.create(buildAppModule(config), { bodyParser: false });
+
+  app.use(jsonBody);
+  app.use(jsonBodyFailures);
 
   // Registered before the first route exists, not after the first endpoint
   // needs it. `@Catch()` with no argument means it catches everything, so

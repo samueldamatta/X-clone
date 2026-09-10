@@ -11,6 +11,7 @@
     "start": "node dist/main.js"
   },
   "devDependencies": {
+    "@types/express": "5.0.5",
     "@types/node": "22.20.2",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
@@ -23,6 +24,7 @@
     "@nestjs/platform-express": "11.1.6",
     "@x-clone/problem-details": "workspace:*",
     "@x-clone/proto": "workspace:*",
+    "express": "5.1.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
   }

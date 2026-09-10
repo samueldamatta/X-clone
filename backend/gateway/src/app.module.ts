@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { GatewayConfig } from './infrastructure/config/env';
 import { IdentityGrpcClient } from './infrastructure/identity/identity.grpc-client';
+import { AuthController } from './presentation/http/auth.controller';
 import { HealthController } from './presentation/http/health.controller';
 
 /**
@@ -10,7 +11,7 @@ import { HealthController } from './presentation/http/health.controller';
  */
 export function buildAppModule(config: GatewayConfig) {
   @Module({
-    controllers: [HealthController],
+    controllers: [HealthController, AuthController],
     providers: [
       {
         provide: IdentityGrpcClient,

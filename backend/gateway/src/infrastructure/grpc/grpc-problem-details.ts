@@ -1,6 +1,6 @@
 import { type Metadata, status as GrpcStatus } from '@grpc/grpc-js';
 import { HttpStatus } from '@nestjs/common';
-import { ProblemDetailsException } from '@x-clone/problem-details';
+import { ProblemDetailsException, reasonPhrase } from '@x-clone/problem-details';
 import { readFieldViolation } from '@x-clone/proto';
 
 /**
@@ -12,27 +12,19 @@ import { readFieldViolation } from '@x-clone/proto';
  * DATA_LOSS and friends all mean "we are broken", and they land on 500
  * through the fallback below.
  */
-const HTTP_FAILURES: Partial<Record<GrpcStatus, { status: number; title: string }>> = {
-  [GrpcStatus.INVALID_ARGUMENT]: { status: HttpStatus.BAD_REQUEST, title: 'Bad Request' },
-  [GrpcStatus.NOT_FOUND]: { status: HttpStatus.NOT_FOUND, title: 'Not Found' },
-  [GrpcStatus.ALREADY_EXISTS]: { status: HttpStatus.CONFLICT, title: 'Conflict' },
-  [GrpcStatus.PERMISSION_DENIED]: { status: HttpStatus.FORBIDDEN, title: 'Forbidden' },
-  [GrpcStatus.UNAUTHENTICATED]: { status: HttpStatus.UNAUTHORIZED, title: 'Unauthorized' },
-  [GrpcStatus.RESOURCE_EXHAUSTED]: {
-    status: HttpStatus.TOO_MANY_REQUESTS,
-    title: 'Too Many Requests',
-  },
+const HTTP_STATUS: Partial<Record<GrpcStatus, number>> = {
+  [GrpcStatus.INVALID_ARGUMENT]: HttpStatus.BAD_REQUEST,
+  [GrpcStatus.NOT_FOUND]: HttpStatus.NOT_FOUND,
+  [GrpcStatus.ALREADY_EXISTS]: HttpStatus.CONFLICT,
+  [GrpcStatus.PERMISSION_DENIED]: HttpStatus.FORBIDDEN,
+  [GrpcStatus.UNAUTHENTICATED]: HttpStatus.UNAUTHORIZED,
+  [GrpcStatus.RESOURCE_EXHAUSTED]: HttpStatus.TOO_MANY_REQUESTS,
   // 504, not 500: the request may well have succeeded upstream. The Gateway
   // simply stopped waiting for the answer, and the client needs to know that
   // retrying is not obviously safe.
-  [GrpcStatus.DEADLINE_EXCEEDED]: { status: HttpStatus.GATEWAY_TIMEOUT, title: 'Gateway Timeout' },
-  [GrpcStatus.UNAVAILABLE]: {
-    status: HttpStatus.SERVICE_UNAVAILABLE,
-    title: 'Service Unavailable',
-  },
+  [GrpcStatus.DEADLINE_EXCEEDED]: HttpStatus.GATEWAY_TIMEOUT,
+  [GrpcStatus.UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
 };
-
-const INTERNAL = { status: HttpStatus.INTERNAL_SERVER_ERROR, title: 'Internal Server Error' };
 
 /**
  * The line between "you got it wrong" and "we got it wrong", which is also
@@ -74,20 +66,23 @@ function isGrpcFailure(error: unknown): error is GrpcFailure {
  * forwarding it hands an attacker a free map of the internal network.
  */
 export function toProblemDetails(error: unknown): ProblemDetailsException {
-  if (!isGrpcFailure(error)) {
-    return new ProblemDetailsException(INTERNAL);
-  }
+  const status = isGrpcFailure(error)
+    ? (HTTP_STATUS[error.code] ?? FIRST_SERVER_ERROR_STATUS)
+    : FIRST_SERVER_ERROR_STATUS;
 
-  const failure = HTTP_FAILURES[error.code] ?? INTERNAL;
+  // Titles come from the shared table, so a 409 from this Gateway reads the
+  // same whether it originated in gRPC metadata or in a Nest pipe.
+  const title = reasonPhrase(status);
 
-  if (failure.status >= FIRST_SERVER_ERROR_STATUS) {
-    return new ProblemDetailsException(failure);
+  if (!isGrpcFailure(error) || status >= FIRST_SERVER_ERROR_STATUS) {
+    return new ProblemDetailsException({ status, title });
   }
 
   const violation = error.metadata === undefined ? undefined : readFieldViolation(error.metadata);
 
   return new ProblemDetailsException({
-    ...failure,
+    status,
+    title,
     detail: error.details,
     ...(violation !== undefined && { field: violation.field }),
   });
