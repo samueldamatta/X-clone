@@ -6,13 +6,17 @@ import { loadConfig } from './infrastructure/config/env';
 
 async function bootstrap(): Promise<void> {
   const config = loadConfig();
-  const app = await NestFactory.create(buildAppModule());
+  const app = await NestFactory.create(buildAppModule(config));
 
   // Registered before the first route exists, not after the first endpoint
   // needs it. `@Catch()` with no argument means it catches everything, so
   // no response can escape in Nest's default `{statusCode, message, error}`
   // shape — see docs/04-api-contracts.md.
   app.useGlobalFilters(new ProblemDetailsFilter());
+  // Without this, Nest never calls onApplicationShutdown — the gRPC channel
+  // is never closed, its keepalive timers hold the event loop open, and a
+  // `docker stop` ends in SIGKILL instead of a clean exit.
+  app.enableShutdownHooks();
 
   // 0.0.0.0, not the default localhost: inside a container, a server bound
   // to the loopback interface is unreachable from the published port.
