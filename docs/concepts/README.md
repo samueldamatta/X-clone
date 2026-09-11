@@ -24,6 +24,7 @@ These are written to be read in order the first time, and dug into individually 
 | Concept | The question it answers |
 |---|---|
 | [The local environment](local-environment.md) | How do nine services and six data stores run on one laptop, the same way in CI? |
+| [Internal gRPC](internal-grpc.md) | Why do the services speak protobuf to each other while the world outside gets REST? |
 
 ## The two that make the above survivable
 
