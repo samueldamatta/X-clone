@@ -39,7 +39,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.work
-          cache-dependency-path: backend/services/*/go.sum
+          # No Go module here has a dependency yet, so no go.sum exists and the
+          # glob resolved to nothing — which setup-go reports as a failed cache
+          # restore on every run. Listing go.work first gives it a file that
+          # exists today; go.work.sum and the per-module sums appear on their
+          # own the moment Phase 3 adds a dependency, and start being hashed
+          # without anyone editing this file. Turning the cache off instead
+          # would have traded a warning today for a slow build later, with
+          # nothing to remind anyone to turn it back on.
+          cache-dependency-path: |
+            go.work
+            go.work.sum
+            backend/services/*/go.sum
       - run: ./scripts/go-check.sh
 
   diagrams:
@@ -82,3 +93,34 @@ jobs:
       - name: tear down
         if: always()
         run: docker compose -f infra/docker/compose.yml down -v
+
+  # The environment job above proves the infrastructure works. This one proves
+  # the services built from this commit work *in it* — over HTTP, in containers,
+  # with nothing stubbed. Day-to-day development runs these two on the host, so
+  # without this job the container path would rot silently and only be
+  # discovered when Phase 11 needed it.
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Built before `up`, and as its own step, so a broken Dockerfile is
+      # reported as a build failure rather than as a service that never
+      # became healthy.
+      - name: build the application images
+        run: docker compose -f infra/docker/compose.yml --profile app build
+      # --wait blocks on the healthchecks, so this step failing means a service
+      # never came up — and the migration container's exit code is part of that
+      # chain: identity does not start until it has succeeded.
+      - name: bring the environment up
+        run: |
+          docker compose -f infra/docker/compose.yml --profile app up -d \
+            --wait --wait-timeout 300
+      - name: register an account through the gateway
+        run: ./scripts/integration.sh
+      - name: logs on failure
+        if: failure()
+        run: docker compose -f infra/docker/compose.yml --profile app logs --tail 80
+      - name: tear down
+        if: always()
+        run: docker compose -f infra/docker/compose.yml --profile app down -v
