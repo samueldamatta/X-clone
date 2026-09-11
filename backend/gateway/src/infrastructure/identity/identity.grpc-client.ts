@@ -14,7 +14,8 @@ import {
   type RegisterRequest,
   type RegisterResponse,
 } from '@x-clone/proto';
-import { FIRST_SERVER_ERROR_STATUS, toProblemDetails } from '../grpc/grpc-problem-details';
+import { FIRST_SERVER_ERROR_STATUS } from '@x-clone/problem-details';
+import { toProblemDetails } from '../grpc/grpc-problem-details';
 
 /**
  * Every call carries one. A gRPC call without a deadline waits forever by

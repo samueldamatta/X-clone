@@ -3,4 +3,4 @@ export type { ProblemDetailsBody, ProblemDetailsInit } from './problem-details.e
 export { ProblemDetailsFilter } from './problem-details.filter';
 export { sendProblemDetails, toProblemDetailsBody } from './problem-details.render';
 export type { ProblemDetailsResponse } from './problem-details.render';
-export { reasonPhrase } from './reason-phrases';
+export { FIRST_SERVER_ERROR_STATUS, reasonPhrase } from './reason-phrases';

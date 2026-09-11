@@ -79,14 +79,17 @@ message RegisterRequest {
 }
 ```
 
-Two rules run through every service definition in this repository, both learned from systems
-that got them wrong:
+Two rules will govern every service definition here, both learned from systems that got them
+wrong. Neither is visible in the code yet — `identity.proto` holds one unary RPC, and the
+services these examples name arrive in Phases 3 and 4 ([`04-api-contracts.md`](../04-api-contracts.md)
+carries the planned surface). They are written down now because retrofitting either one
+means changing a contract both sides already depend on.
 
-**Batch by default.** `GetTweets` takes a list of ids. If it took one, hydrating a timeline
-page would be fifty sequential round trips and the read path's latency would be dominated by
-network overhead rather than by work.
+**Batch by default.** `GetTweets` will take a list of ids. If it took one, hydrating a
+timeline page would be fifty sequential round trips and the read path's latency would be
+dominated by network overhead rather than by work.
 
-**Stream unbounded results.** `GetFollowers` returns a stream of batches. The 40-million
+**Stream unbounded results.** `GetFollowers` will return a stream of batches. The 40-million
 follower case stops being a memory problem and becomes a loop.
 
 ## The part that is easy to get wrong: errors
@@ -135,7 +138,7 @@ layer where it can be dropped.
 | `PERMISSION_DENIED` | 403 | |
 | `NOT_FOUND` | 404 | |
 | `ALREADY_EXISTS` | 409 | |
-| `RESOURCE_EXHAUSTED` | 429 | |
+| `RESOURCE_EXHAUSTED` | 429 | Nothing raises it until rate limiting lands |
 | `DEADLINE_EXCEEDED` | **504** | We stopped waiting — the write may still have landed |
 | `UNAVAILABLE` | 503 | |
 | anything else | 500 | We are broken |

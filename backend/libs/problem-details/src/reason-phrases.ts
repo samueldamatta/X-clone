@@ -26,6 +26,18 @@ const REASON_PHRASES: Record<number, string> = {
 };
 
 /**
+ * The line between "you got it wrong" and "we got it wrong", which is also the
+ * line where forwarding an upstream message stops being helpful and starts
+ * being a leak.
+ *
+ * Typed `number` rather than left as the HttpStatus enum member on purpose:
+ * `response.getStatus()` returns a plain number, and comparing the two trips
+ * @typescript-eslint/no-unsafe-enum-comparison. Naming it once here is what
+ * keeps every caller from rediscovering that.
+ */
+export const FIRST_SERVER_ERROR_STATUS: number = 500;
+
+/**
  * The stable title for a status code. An unlisted code falls back to the
  * class it belongs to rather than to a made-up phrase.
  */
@@ -34,5 +46,5 @@ export function reasonPhrase(status: number): string {
   if (phrase !== undefined) {
     return phrase;
   }
-  return status >= 500 ? 'Internal Server Error' : 'Request Error';
+  return status >= FIRST_SERVER_ERROR_STATUS ? 'Internal Server Error' : 'Request Error';
 }

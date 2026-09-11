@@ -52,8 +52,10 @@ COPY --from=build --chown=node:node /app ./
 USER node
 
 ENV NODE_ENV=production
-# gRPC only. Nothing public is served from this port — the Gateway is the only
-# thing that dials it, over the compose network.
+# gRPC only. No browser speaks to this; the Gateway is the only caller, over
+# the compose network. compose.yml does publish it to the host anyway, because
+# the port map in docs/diagrams/03-local-environment-light.svg assigns 8081 to
+# identity and a reserved port that nothing binds is a port someone reuses.
 EXPOSE 8081
 
 CMD ["node", "dist/main.js"]

@@ -1,4 +1,8 @@
-import { BadRequestException, type ArgumentsHost } from '@nestjs/common';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  type ArgumentsHost,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ProblemDetailsException } from './problem-details.exception';
 import { ProblemDetailsFilter } from './problem-details.filter';
@@ -62,6 +66,26 @@ describe('ProblemDetailsFilter', () => {
       title: 'Bad Request',
       status: 400,
       detail: 'bad input',
+    });
+  });
+
+  it('drops the message of a 5xx HttpException, which was written for us', () => {
+    // docs/04-api-contracts.md: "`detail` ... is omitted entirely on 5xx".
+    // Nest's own InternalServerErrorException carries whatever a caller threw
+    // it with, and that sentence names our internals.
+    const filter = new ProblemDetailsFilter();
+    const response = fakeResponse();
+
+    filter.catch(
+      new InternalServerErrorException('connect ECONNREFUSED 10.0.1.7:5432'),
+      hostWith(response),
+    );
+
+    expect(JSON.stringify(response.send.mock.calls[0])).not.toContain('10.0.1.7');
+    expect(response.send).toHaveBeenCalledWith({
+      type: 'about:blank',
+      title: 'Internal Server Error',
+      status: 500,
     });
   });
 

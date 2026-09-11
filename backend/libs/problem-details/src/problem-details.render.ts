@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ProblemDetailsException } from './problem-details.exception';
 import type { ProblemDetailsBody } from './problem-details.exception';
-import { reasonPhrase } from './reason-phrases';
+import { FIRST_SERVER_ERROR_STATUS, reasonPhrase } from './reason-phrases';
 
 /**
  * Structural, rather than Express's `Response`: this is also called from an
@@ -32,7 +32,9 @@ const MIDDLEWARE_DETAILS: Record<number, string> = {
  * 1. A ProblemDetailsException carries its own shape. We wrote it, so all
  *    of it is safe to send.
  * 2. Any other HttpException (Nest's built-ins, e.g. from a pipe) keeps its
- *    status and message, but gets a stable title.
+ *    status and gets a stable title. Its message survives only on a 4xx: a
+ *    5xx message was written for us, and an InternalServerErrorException
+ *    carrying a connection string would otherwise render it verbatim.
  * 3. Something thrown by middleware below Nest — the Express body parser is
  *    the one that matters — is honoured for its status only. Its message
  *    was written by a parser, from the caller's own bytes.
@@ -46,6 +48,11 @@ export function toProblemDetailsBody(exception: unknown): ProblemDetailsBody {
 
   if (exception instanceof HttpException) {
     const status = exception.getStatus();
+
+    if (status >= FIRST_SERVER_ERROR_STATUS) {
+      return { type: 'about:blank', title: reasonPhrase(status), status };
+    }
+
     const response = exception.getResponse();
     const detail = typeof response === 'string' ? response : exception.message;
 

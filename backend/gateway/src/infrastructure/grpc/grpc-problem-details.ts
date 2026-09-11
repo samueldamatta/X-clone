@@ -1,6 +1,10 @@
 import { type Metadata, status as GrpcStatus } from '@grpc/grpc-js';
 import { HttpStatus } from '@nestjs/common';
-import { ProblemDetailsException, reasonPhrase } from '@x-clone/problem-details';
+import {
+  FIRST_SERVER_ERROR_STATUS,
+  ProblemDetailsException,
+  reasonPhrase,
+} from '@x-clone/problem-details';
 import { readFieldViolation } from '@x-clone/proto';
 
 /**
@@ -25,14 +29,6 @@ const HTTP_STATUS: Partial<Record<GrpcStatus, number>> = {
   [GrpcStatus.DEADLINE_EXCEEDED]: HttpStatus.GATEWAY_TIMEOUT,
   [GrpcStatus.UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
 };
-
-/**
- * The line between "you got it wrong" and "we got it wrong", which is also
- * the line where forwarding the upstream message stops being helpful and
- * starts being a leak. Exported because the client applies the same rule
- * when deciding what to log.
- */
-export const FIRST_SERVER_ERROR_STATUS = 500;
 
 /**
  * grpc-js declares ServiceError as an interface, so `instanceof` is not

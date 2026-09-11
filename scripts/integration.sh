@@ -108,9 +108,19 @@ result=$(post "{\"handle\":\"${handle}b\",\"password\":\"abc\"}")
 status=${result%% *}
 
 if [ "$status" = "400" ] && grep -q '"field":"password"' "$body"; then
-  ok "a too-weak password is rejected before an account exists (400)"
+  ok "a too-weak password is refused (400)"
 else
   bad "expected 400 naming password, got ${status:-<none>}" "$(cat "$body")"
+fi
+
+# The criterion is "rejected *before an account is created*". The 400 above is
+# only half of that: a bug that inserted the user and then failed would answer
+# 400 too. This is the other half.
+created=$(psql_ "SELECT count(*) FROM identity.users WHERE handle = '${handle}b';")
+if [ "$created" = "0" ]; then
+  ok "no account was created for the rejected password"
+else
+  bad "the rejected registration left $created row(s) behind"
 fi
 
 result=$(post "{\"handle\":\"${handle}c\"}")
