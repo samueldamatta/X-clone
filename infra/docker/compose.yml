@@ -5,6 +5,7 @@
 # a port map that only exists in this file is a port map nobody reads.
 #
 #   docker compose -f infra/docker/compose.yml up -d          # core, 8 containers
+#   docker compose -f infra/docker/compose.yml --profile app up -d
 #   docker compose -f infra/docker/compose.yml --profile media up -d
 #   docker compose -f infra/docker/compose.yml --profile search up -d
 #   docker compose -f infra/docker/compose.yml --profile full up -d
@@ -12,6 +13,11 @@
 #
 # MinIO and OpenSearch sit behind profiles because nothing consumes them until
 # Phase 6 and Phase 8. They cost ~2 GB of RAM to leave running in the meantime.
+#
+# The application services sit behind `app` for a different reason: day-to-day
+# they run on the host, against this environment, because a rebuild beats a
+# container restart on every edit. The containers exist for CI and for Phase 11,
+# and CI exercises them on every push so the two modes cannot drift apart.
 #
 # Every container's configuration lives in infra/<tool>/ — one directory per tool,
 # mounted read-only. This file holds the topology and nothing else.
@@ -222,6 +228,105 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks: [xclone]
+
+  # --- Application services: Phase 2 -----------------------------------------
+
+  # Runs to completion, then exits. Migrations are a step, not a lifecycle hook
+  # on the service: two identity replicas starting at once would otherwise race
+  # to apply the same DDL. See docs/adr/0007-bootstrap-versus-service-migrations.md.
+  #
+  # It connects as identity_svc, never as the superuser — the whole point of the
+  # role the bootstrap created is that a migration cannot reach another schema
+  # even by accident.
+  # Same image as `identity`, which is where its `build:` lives — a migration
+  # runner that could be built from different sources than the service it
+  # migrates is a way to apply the wrong schema. Only one service may declare
+  # the build: two services exporting one tag race in BuildKit and fail with
+  # `image already exists`. Compose builds every service before starting any,
+  # so the image is there by the time this one runs.
+  identity-migrate:
+    image: xclone/identity:dev
+    container_name: xclone-identity-migrate
+    profiles: ['app', 'full']
+    command: ['node', 'dist/infrastructure/persistence/migrate.js']
+    environment:
+      DATABASE_URL: postgres://identity_svc:identity_svc_dev@postgres:5432/xclone
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # A one-shot container that restarts is a migration loop.
+    restart: 'no'
+    networks: [xclone]
+
+  identity:
+    build:
+      context: ../..
+      dockerfile: backend/services/identity/Dockerfile
+    image: xclone/identity:dev
+    container_name: xclone-identity
+    profiles: ['app', 'full']
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://identity_svc:identity_svc_dev@postgres:5432/xclone
+      GRPC_URL: 0.0.0.0:8081
+      # Ten bits, unique per running instance. Two replicas sharing a value
+      # mint the same id twice whenever both do so in the same millisecond,
+      # and neither fails nor warns — see docs/concepts/snowflake-ids.md.
+      SNOWFLAKE_NODE_ID: 1
+    ports:
+      - '8081:8081'
+    depends_on:
+      identity-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # gRPC has no equivalent of `curl /health`, and grpc_health_probe would
+      # mean another binary in the image for one line of compose. A TCP connect
+      # answers what a healthcheck is actually for — is this process still
+      # accepting connections — and claims nothing more than that.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('net').connect(8081, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks: [xclone]
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: backend/gateway/Dockerfile
+    image: xclone/gateway:dev
+    container_name: xclone-gateway
+    profiles: ['app', 'full']
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      # Service name, not localhost: compose's embedded DNS resolves it to the
+      # identity container on this network.
+      IDENTITY_GRPC_URL: identity:8081
+    ports:
+      - '8080:8080'
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:8080/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks: [xclone]
 
   # --- Deferred: nothing consumes these until Phase 6 and Phase 8 -------------

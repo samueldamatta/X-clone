@@ -10,8 +10,9 @@
   "packageManager": "pnpm@10.30.0",
   "scripts": {
     "up": "docker compose -f infra/docker/compose.yml up -d",
-    "up:full": "docker compose -f infra/docker/compose.yml --profile full up -d",
-    "down": "docker compose -f infra/docker/compose.yml down",
+    "up:app": "docker compose -f infra/docker/compose.yml --profile app up -d --build",
+    "up:full": "docker compose -f infra/docker/compose.yml --profile full up -d --build",
+    "down": "docker compose -f infra/docker/compose.yml --profile full down",
     "reset": "docker compose -f infra/docker/compose.yml --profile full down -v",
     "logs": "docker compose -f infra/docker/compose.yml logs -f",
     "preflight": "./scripts/preflight.sh",

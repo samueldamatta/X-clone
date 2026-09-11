@@ -1,5 +1,10 @@
 packages:
-  - 'backend/gateway'
-  - 'backend/services/*'
-  - 'backend/libs/*'
-  - 'frontend'
+  - backend/gateway
+  - backend/services/*
+  - backend/libs/*
+  - frontend
+
+onlyBuiltDependencies:
+  - '@nestjs/core'
+  - argon2
+  - esbuild

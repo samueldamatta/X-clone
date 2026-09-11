@@ -20,8 +20,22 @@ academic; and a `.proto` file makes a breaking change visible at build time inst
 - All ids are Snowflake integers, serialised as **strings** in JSON. JavaScript's
   `Number.MAX_SAFE_INTEGER` is 2^53−1; a 64-bit id silently loses precision as a JSON
   number. This is a real bug that ships often.
-- Errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457).
+- Errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457), served as
+  `application/problem+json`. One extension member is added: **`field`**, naming the single
+  request field that caused the failure. Every validation error in this system rejects
+  exactly one field, so a list — as `google.rpc.BadRequest` would carry — is a shape that
+  would never be filled. Internally it travels as gRPC metadata; see
+  [`concepts/internal-grpc.md`](concepts/internal-grpc.md).
+
+  ```json
+  { "type": "about:blank", "title": "Conflict", "status": 409, "field": "handle" }
+  ```
+
+  `title` names the problem *type* and does not vary between occurrences; `detail` is
+  specific to the one at hand, and is omitted entirely on 5xx — that message was written
+  for us, not for the caller.
 - Every response carries `X-Request-Id`, propagated as the OpenTelemetry trace id.
+  *Not built yet — wiring it is [#12](https://github.com/samueldamatta/X-clone/issues/12).*
 
 ## Public REST surface
 
@@ -139,6 +153,9 @@ service TimelineService {
 }
 
 service IdentityService {
+  // Built in Phase 2. GetUsers and VerifyToken arrive with the tickets that
+  // first need them — batched lookup in Phase 4, token verification in #6.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
   rpc GetUsers(UserIdList) returns (UserList);
   rpc VerifyToken(TokenRequest) returns (TokenClaims);
 }

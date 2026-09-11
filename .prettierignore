@@ -16,3 +16,7 @@ docs/diagrams/*.excalidraw
 # and Prettier explodes them into 8-line objects. The diagrams CI job already
 # proves the generator works; formatting it buys nothing.
 docs/diagrams/_generator/
+
+# drizzle-kit's own bookkeeping for generated migrations — reformatting it
+# would produce a diff `drizzle-kit generate` did not make.
+**/persistence/migrations/meta/
