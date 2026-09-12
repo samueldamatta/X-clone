@@ -43,3 +43,20 @@ export class HandleTakenError extends Error {
     this.name = 'HandleTakenError';
   }
 }
+
+/**
+ * No account answers to this handle.
+ *
+ * Unlike InvalidCredentialsError above, this one is safe to be specific
+ * about: a profile read is public, so "does this handle exist?" is a
+ * question the endpoint exists to answer. Hiding it here would cost a real
+ * feature — a client cannot tell "free handle" from "server broke" — and
+ * buy nothing, because anyone can learn the same thing by visiting the
+ * profile page.
+ */
+export class ProfileNotFoundError extends Error {
+  constructor(readonly handle: string) {
+    super(`no account with handle "${handle}"`);
+    this.name = 'ProfileNotFoundError';
+  }
+}
