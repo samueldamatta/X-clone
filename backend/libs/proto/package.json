@@ -24,6 +24,7 @@
     "@grpc/grpc-js": "1.13.4"
   },
   "devDependencies": {
+    "@grpc/proto-loader": "0.8.0",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
   }

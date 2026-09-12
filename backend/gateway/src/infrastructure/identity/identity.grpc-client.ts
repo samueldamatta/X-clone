@@ -11,6 +11,8 @@ import type { OnApplicationShutdown } from '@nestjs/common';
 import {
   identityProtoPath,
   type IdentityServiceClient,
+  type LoginRequest,
+  type LoginResponse,
   type RegisterRequest,
   type RegisterResponse,
 } from '@x-clone/proto';
@@ -47,13 +49,21 @@ interface IdentityProtoPackage {
   };
 }
 
-type RegisterCall = (
-  request: RegisterRequest,
+/**
+ * grpc-js's generated methods are callback-shaped and identical in form
+ * for every unary RPC, so the two below differ only in their message
+ * types.
+ */
+type UnaryCall<Request, Response> = (
+  request: Request,
   options: CallOptions,
-  callback: (error: ServiceError | null, response?: RegisterResponse) => void,
+  callback: (error: ServiceError | null, response?: Response) => void,
 ) => void;
 
-type IdentityRpcClient = Client & { register: RegisterCall };
+type IdentityRpcClient = Client & {
+  register: UnaryCall<RegisterRequest, RegisterResponse>;
+  login: UnaryCall<LoginRequest, LoginResponse>;
+};
 
 /**
  * The Gateway's only way of reaching Identity.
@@ -91,10 +101,30 @@ export class IdentityGrpcClient implements IdentityServiceClient, OnApplicationS
   }
 
   register(request: RegisterRequest): Promise<RegisterResponse> {
-    return new Promise<RegisterResponse>((resolve, reject) => {
+    return this.call(this.client.register, request);
+  }
+
+  login(request: LoginRequest): Promise<LoginResponse> {
+    return this.call(this.client.login, request);
+  }
+
+  /**
+   * The callback-to-Promise boundary, written once. Every RPC on this
+   * client gets the same deadline and the same failure translation, which
+   * is the point: a method that forgot either would be a call that hangs
+   * forever, or one that forwards an internal error message to a browser.
+   */
+  private call<Request, Response>(
+    method: UnaryCall<Request, Response>,
+    request: Request,
+  ): Promise<Response> {
+    return new Promise<Response>((resolve, reject) => {
       const options: CallOptions = { deadline: Date.now() + CALL_TIMEOUT_MS };
 
-      this.client.register(request, options, (error, response) => {
+      // .call, because grpc-js's generated methods are unbound functions
+      // that need the client as their receiver — passing `this.client.login`
+      // as a value loses it.
+      method.call(this.client, request, options, (error, response) => {
         if (error !== null) {
           reject(this.asPublicFailure(error));
           return;

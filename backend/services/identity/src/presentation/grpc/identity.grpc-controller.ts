@@ -1,10 +1,15 @@
 import { Metadata, status as GrpcStatus } from '@grpc/grpc-js';
 import { Controller, Inject } from '@nestjs/common';
 import { GrpcMethod, RpcException } from '@nestjs/microservices';
-import type { RegisterRequest, RegisterResponse } from '@x-clone/proto';
+import type { LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from '@x-clone/proto';
 import { withFieldViolation } from '@x-clone/proto';
+import { LoginUseCase } from '../../application/login.use-case';
 import { RegisterUserUseCase } from '../../application/register-user.use-case';
-import { DomainValidationError, HandleTakenError } from '../../domain/errors';
+import {
+  DomainValidationError,
+  HandleTakenError,
+  InvalidCredentialsError,
+} from '../../domain/errors';
 
 /**
  * Only the method this controller calls — see the test for why not the
@@ -12,10 +17,14 @@ import { DomainValidationError, HandleTakenError } from '../../domain/errors';
  * interface has no runtime representation for Nest's reflection to find.
  */
 type RegisterUser = Pick<RegisterUserUseCase, 'execute'>;
+type Login = Pick<LoginUseCase, 'execute'>;
 
 @Controller()
 export class IdentityGrpcController {
-  constructor(@Inject(RegisterUserUseCase) private readonly registerUser: RegisterUser) {}
+  constructor(
+    @Inject(RegisterUserUseCase) private readonly registerUser: RegisterUser,
+    @Inject(LoginUseCase) private readonly loginUser: Login,
+  ) {}
 
   @GrpcMethod('IdentityService', 'Register')
   async register(data: RegisterRequest): Promise<RegisterResponse> {
@@ -29,6 +38,30 @@ export class IdentityGrpcController {
         handle: user.handle,
         displayName: user.displayName,
         createdAt: user.createdAt.toISOString(),
+      };
+    } catch (error) {
+      throw toRpcException(error);
+    }
+  }
+
+  @GrpcMethod('IdentityService', 'Login')
+  async login(data: LoginRequest): Promise<LoginResponse> {
+    try {
+      const result = await this.loginUser.execute({
+        handle: data.handle,
+        password: data.password,
+        // proto3 has no null: an absent User-Agent arrives as ''. Turning
+        // it back into undefined here is what lets the session row store a
+        // real NULL rather than an empty string pretending to be one.
+        ...(data.userAgent !== '' && { userAgent: data.userAgent }),
+      });
+
+      return {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        accessTokenExpiresAt: result.accessTokenExpiresAt.toISOString(),
+        refreshTokenExpiresAt: result.refreshTokenExpiresAt.toISOString(),
+        userId: result.userId,
       };
     } catch (error) {
       throw toRpcException(error);
@@ -49,6 +82,20 @@ function toRpcException(error: unknown): RpcException {
       code: GrpcStatus.INVALID_ARGUMENT,
       message: error.reason,
       metadata: withFieldViolation(new Metadata(), { field: error.field, reason: error.reason }),
+    });
+  }
+
+  /**
+   * UNAUTHENTICATED, and — unlike every other branch here — no field
+   * violation and no reason. The message is the same constant string for
+   * an unknown handle as for a wrong password, because naming which one
+   * failed is exactly the account-enumeration answer the domain error
+   * exists to withhold. A `field: 'handle'` here would undo all of it.
+   */
+  if (error instanceof InvalidCredentialsError) {
+    return new RpcException({
+      code: GrpcStatus.UNAUTHENTICATED,
+      message: error.message,
     });
   }
 

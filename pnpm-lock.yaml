@@ -105,6 +105,9 @@ importers:
         specifier: 1.13.4
         version: 1.13.4
     devDependencies:
+      '@grpc/proto-loader':
+        specifier: 0.8.0
+        version: 0.8.0
       typescript:
         specifier: 6.0.3
         version: 6.0.3
