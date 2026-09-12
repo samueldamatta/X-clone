@@ -277,8 +277,8 @@ services:
       # A development key, committed on purpose and useless anywhere else:
       # it is public the moment this file is. At least 32 bytes, because
       # HS256's MAC is 256 bits and a shorter key is the weakest link in
-      # the construction. The Gateway gets the same value when #7 teaches
-      # it to verify — that sharing is what HS256 costs, and
+      # the construction. The Gateway holds the same value so it can verify
+      # locally — that sharing is what HS256 costs, and
       # docs/concepts/access-and-refresh-tokens.md says what it buys.
       JWT_SECRET: dev-only-not-a-secret-change-me-32b
     ports:
@@ -317,6 +317,14 @@ services:
       # Service name, not localhost: compose's embedded DNS resolves it to the
       # identity container on this network.
       IDENTITY_GRPC_URL: identity:8081
+      # The same key identity signs access tokens with, byte for byte. That
+      # is what lets the Gateway verify one locally, with no call back — and
+      # it is also the cost: whoever can verify can also mint, so a
+      # compromised Gateway can forge a token for any account. Asymmetric
+      # keys would prevent that, at the price of distributing a public one.
+      # Required: the Gateway refuses to start without it, because a default
+      # signing key works, which is what makes it worse than a crash.
+      JWT_SECRET: dev-only-not-a-secret-change-me-32b
     ports:
       - '8080:8080'
     depends_on:
