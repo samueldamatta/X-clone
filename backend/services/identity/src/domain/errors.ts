@@ -55,8 +55,46 @@ export class HandleTakenError extends Error {
  * profile page.
  */
 export class ProfileNotFoundError extends Error {
-  constructor(readonly handle: string) {
-    super(`no account with handle "${handle}"`);
+  private constructor(message: string) {
+    super(message);
     this.name = 'ProfileNotFoundError';
+  }
+
+  /** The public read: somebody asked for a handle nobody holds. */
+  static byHandle(handle: string): ProfileNotFoundError {
+    return new ProfileNotFoundError(`no account with handle "${handle}"`);
+  }
+
+  /**
+   * The authenticated update, and a case that should not happen: the id
+   * came from a token this system signed. It is reachable exactly once —
+   * when an account is deleted while one of its access tokens is still
+   * inside its fifteen-minute life.
+   */
+  static byId(userId: string): ProfileNotFoundError {
+    return new ProfileNotFoundError(`no account with id "${userId}"`);
+  }
+}
+
+/**
+ * A PATCH that asks for nothing.
+ *
+ * The alternative — accept it, change nothing, answer 200 with the current
+ * profile — is defensible and idempotent, and it is what makes this a real
+ * decision rather than an obvious one. It was rejected for one reason: a
+ * client that sends `{"displayname": "Sam"}` (wrong case, a typo anyone
+ * makes once) would get a 200 and a profile that did not change, and would
+ * have to notice on its own. Refusing turns a silent no-op into a message.
+ *
+ * The cost is that it names no field, which the API's own convention says
+ * validation errors always do (docs/04-api-contracts.md). There is no
+ * single field to name: the fault is in the body as a whole. Login is the
+ * other place that carries no `field`, for an unrelated reason, and both
+ * are written down there.
+ */
+export class EmptyProfileUpdateError extends Error {
+  constructor() {
+    super('no supported field was given to update');
+    this.name = 'EmptyProfileUpdateError';
   }
 }

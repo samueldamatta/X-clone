@@ -8,6 +8,8 @@ package identity.v1;
 service IdentityService {
   rpc Register(RegisterRequest) returns (RegisterResponse);
   rpc Login(LoginRequest) returns (LoginResponse);
+  rpc GetProfile(GetProfileRequest) returns (Profile);
+  rpc UpdateProfile(UpdateProfileRequest) returns (Profile);
 }
 
 message RegisterRequest {
@@ -51,4 +53,46 @@ message LoginResponse {
   string refresh_token_expires_at = 4;
   // Snowflake, decimal string. Who the caller just proved to be.
   string user_id = 5;
+}
+
+message GetProfileRequest {
+  // The @name, not the id: this serves a public URL a human typed.
+  string handle = 1;
+}
+
+message UpdateProfileRequest {
+  // Snowflake, decimal string. It comes from the access token the Gateway
+  // verified, never from the request body — which is the whole reason one
+  // account cannot edit another's profile. There is no field here for
+  // "whose profile", because the caller has no way to say.
+  string user_id = 1;
+
+  // `optional`, and that keyword is load-bearing.
+  //
+  // proto3 gives a plain `string` no field presence: an unset one and one
+  // set to "" are the same bytes on the wire, and arrive identically. That
+  // is fatal for a PATCH, where absent means "leave this alone" and "" means
+  // "clear my bio" — two opposite instructions.
+  //
+  // `optional` reinstates presence (a synthetic oneof), and
+  // @grpc/proto-loader preserves it: an unset field is absent from the
+  // received object entirely, even under `defaults: true`. That behaviour is
+  // a library guarantee this design rests on, so it is pinned by a real
+  // client/server round trip in field-presence.test.ts rather than assumed.
+  optional string display_name = 2;
+  optional string bio = 3;
+}
+
+// Returned by both profile RPCs: a read and a write of the same thing
+// should not answer in two different shapes.
+message Profile {
+  // Snowflake, decimal string. The stable one — a handle can be renamed,
+  // this cannot, so every reference that must survive a rename points here.
+  string id = 1;
+  string handle = 2;
+  string display_name = 3;
+  // Never absent: the column defaults to '' for an account that never set one.
+  string bio = 4;
+  // RFC 3339.
+  string created_at = 5;
 }
