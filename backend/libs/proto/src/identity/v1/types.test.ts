@@ -62,9 +62,7 @@ function protoFields(messageName: string): string[] {
   const message = definition[`identity.v1.${messageName}`];
   expect(message, `identity.v1.${messageName} is missing from the .proto`).toBeDefined();
 
-  return (message as { type: { field: { name: string }[] } }).type.field.map(
-    (field) => field.name,
-  );
+  return (message as { type: { field: { name: string }[] } }).type.field.map((field) => field.name);
 }
 
 describe('identity.proto and its hand-written types', () => {

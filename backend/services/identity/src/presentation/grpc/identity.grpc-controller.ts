@@ -1,7 +1,12 @@
 import { Metadata, status as GrpcStatus } from '@grpc/grpc-js';
 import { Controller, Inject } from '@nestjs/common';
 import { GrpcMethod, RpcException } from '@nestjs/microservices';
-import type { LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from '@x-clone/proto';
+import type {
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  RegisterResponse,
+} from '@x-clone/proto';
 import { withFieldViolation } from '@x-clone/proto';
 import { LoginUseCase } from '../../application/login.use-case';
 import { RegisterUserUseCase } from '../../application/register-user.use-case';
@@ -12,9 +17,9 @@ import {
 } from '../../domain/errors';
 
 /**
- * Only the method this controller calls — see the test for why not the
- * concrete class. The DI token is still the class itself (below): an
- * interface has no runtime representation for Nest's reflection to find.
+ * Only the methods this controller calls — see the test for why not the
+ * concrete classes. The DI tokens are still the classes themselves (below):
+ * an interface has no runtime representation for Nest's reflection to find.
  */
 type RegisterUser = Pick<RegisterUserUseCase, 'execute'>;
 type Login = Pick<LoginUseCase, 'execute'>;
@@ -40,7 +45,7 @@ export class IdentityGrpcController {
         createdAt: user.createdAt.toISOString(),
       };
     } catch (error) {
-      throw toRpcException(error);
+      throw toRpcException(error, 'Register');
     }
   }
 
@@ -64,19 +69,22 @@ export class IdentityGrpcController {
         userId: result.userId,
       };
     } catch (error) {
-      throw toRpcException(error);
+      throw toRpcException(error, 'Login');
     }
   }
 }
 
 /**
- * Every failure this service raises names one field — see
+ * Every *validation* failure this service raises names one field — see
  * docs/04-api-contracts.md. The field rides in gRPC metadata (rather than
  * google.rpc.BadRequest) because @x-clone/proto's FieldViolation already
  * covers the one-field-per-error case this system needs; the Gateway reads
  * it back to build the RFC 9457 response.
+ *
+ * The exception is InvalidCredentialsError below, which names none on
+ * purpose. It is the only branch here that carries no metadata at all.
  */
-function toRpcException(error: unknown): RpcException {
+function toRpcException(error: unknown, rpc: string): RpcException {
   if (error instanceof DomainValidationError) {
     return new RpcException({
       code: GrpcStatus.INVALID_ARGUMENT,
@@ -113,7 +121,10 @@ function toRpcException(error: unknown): RpcException {
 
   // Logged here, server-side, precisely because the client never sees more
   // than "internal error" — this is the one place that detail is not lost.
-  console.error('identity: unexpected error in Register', error);
+  // The RPC name is passed in rather than hard-coded: this function serves
+  // every method on the controller, and a log line that always said
+  // "Register" would point at the wrong one half the time.
+  console.error(`identity: unexpected error in ${rpc}`, error);
 
   return new RpcException({
     code: GrpcStatus.INTERNAL,
