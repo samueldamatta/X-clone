@@ -1,13 +1,29 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
 import { IdentityGrpcClient } from '../../infrastructure/identity/identity.grpc-client';
+import { parseLoginBody } from './login.request';
 import { parseRegisterBody } from './register.request';
 
 /**
- * Only the method this controller calls — see the test for why not the
+ * Only the methods this controller calls — see the test for why not the
  * concrete class. The DI token is still the class itself (below): an
  * interface has no runtime representation for Nest's reflection to find.
  */
-type IdentityClient = Pick<IdentityGrpcClient, 'register'>;
+type IdentityClient = Pick<IdentityGrpcClient, 'register' | 'login'>;
+
+export interface IssuedTokens {
+  /**
+   * A JWT. The client sends it as `Authorization: Bearer <accessToken>` on
+   * every authenticated call — see docs/04-api-contracts.md.
+   */
+  accessToken: string;
+  /** RFC 3339. When the access token stops being accepted. */
+  accessTokenExpiresAt: string;
+  /** Opaque, and good for exactly one thing: getting a new access token. */
+  refreshToken: string;
+  refreshTokenExpiresAt: string;
+  /** Snowflake, as a decimal string. Who the caller just proved to be. */
+  userId: string;
+}
 
 export interface RegisteredAccount {
   /**
@@ -47,6 +63,42 @@ export class AuthController {
       handle: account.handle,
       displayName: account.displayName,
       createdAt: account.createdAt,
+    };
+  }
+
+  /**
+   * 200, not 201. A session is created, but no URL now addresses it —
+   * 201 promises a resource the client can go and GET, and there is none.
+   *
+   * The tokens come back in the response body. For a browser client an
+   * httpOnly cookie would put the refresh token out of reach of XSS, which
+   * is a real advantage this design gives up; the cost of taking it is a
+   * cookie-shaped API that every non-browser client has to work around,
+   * and CSRF protection to add on top. Worth revisiting when the frontend
+   * arrives in Phase 5 and there is a real browser to decide for.
+   */
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(
+    @Body() body: unknown,
+    @Headers('user-agent') userAgent?: string,
+  ): Promise<IssuedTokens> {
+    const credentials = parseLoginBody(body);
+
+    const tokens = await this.identity.login({
+      ...credentials,
+      // proto3 has no null — Identity turns '' back into "no user agent".
+      userAgent: userAgent ?? '',
+    });
+
+    // Field by field, like register: a field added to the .proto must not
+    // become public because nobody remembered to strip it.
+    return {
+      accessToken: tokens.accessToken,
+      accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+      refreshToken: tokens.refreshToken,
+      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
+      userId: tokens.userId,
     };
   }
 }
