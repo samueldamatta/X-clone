@@ -37,6 +37,13 @@
     // any future SWC build already assume. Making it explicit means the
     // type-checker rejects what those transforms would silently miscompile.
     "isolatedModules": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    // TypeScript 6 no longer includes every package under node_modules/@types
+    // automatically, so the Node library has to be named. Naming it here, and
+    // not per package, is what makes a package that forgets to declare
+    // @types/node fail with TS2688 instead of quietly borrowing the copy that
+    // some neighbour's `/// <reference types="node" />` dragged in.
+    "types": ["node"]
   }
 }
