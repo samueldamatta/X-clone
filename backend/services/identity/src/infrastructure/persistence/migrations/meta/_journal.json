@@ -8,6 +8,13 @@
       "when": 1788396854601,
       "tag": "0000_sparkling_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789172235231,
+      "tag": "0001_wet_demogoblin",
+      "breakpoints": true
     }
   ]
 }
