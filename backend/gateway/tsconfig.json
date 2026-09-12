@@ -2,13 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-
-    // TypeScript 6 no longer pulls in every package under node_modules/@types
-    // automatically. Naming it here is what puts `process`, `console` and the
-    // `node:` builtins in scope — the Identity service only compiles without
-    // this because @types/pg happens to `/// <reference types="node" />`.
-    "types": ["node"]
+    "emitDecoratorMetadata": true
   },
   "include": ["src"]
 }

@@ -147,7 +147,7 @@ result.
 
 ## Local development
 
-**Requires** Docker, Node 20+, pnpm 9+, and Go 1.24+.
+**Requires** Docker, Node 22+, pnpm 9+, and Go 1.24+.
 
 ```bash
 cp .env.example .env

@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@grpc/proto-loader": "0.8.0",
+    "@types/node": "22.20.2",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
   }
