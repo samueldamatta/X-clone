@@ -15,6 +15,25 @@ export class DomainValidationError extends Error {
   }
 }
 
+/**
+ * The one failure in this service that names no field, on purpose.
+ *
+ * An unknown handle and a wrong password raise *this same instance shape*,
+ * with no detail distinguishing them. Naming the field would answer the
+ * question an attacker is actually asking — "does this handle exist?" —
+ * and turn the login endpoint into an account enumeration oracle.
+ *
+ * Costing the user a worse error message is the price. It is a real cost:
+ * someone who genuinely mistyped their handle is told only that something
+ * was wrong. Every login form on the internet pays it.
+ */
+export class InvalidCredentialsError extends Error {
+  constructor() {
+    super('invalid handle or password');
+    this.name = 'InvalidCredentialsError';
+  }
+}
+
 /** A handle that is syntactically valid but already belongs to another account. */
 export class HandleTakenError extends Error {
   readonly field = 'handle';

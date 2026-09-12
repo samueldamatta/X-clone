@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DomainValidationError, HandleTakenError } from '../domain/errors';
 import type { IdGenerator } from '../domain/ports/id-generator';
 import type { PasswordHasher } from '../domain/ports/password-hasher';
-import type { UserRepository } from '../domain/ports/user-repository';
+import type { StoredCredentials, UserRepository } from '../domain/ports/user-repository';
 import type { User } from '../domain/user';
 import { RegisterUserUseCase } from './register-user.use-case';
 
@@ -23,6 +23,11 @@ class InMemoryUserRepository implements UserRepository {
     this.created.push({ user, passwordHash });
     return Promise.resolve();
   }
+
+  /** Part of the port, and no part of registering. See login.use-case.test.ts. */
+  findCredentialsByHandle(): Promise<StoredCredentials | undefined> {
+    return Promise.reject(new Error('not used by RegisterUserUseCase'));
+  }
 }
 
 class FakePasswordHasher implements PasswordHasher {
@@ -31,6 +36,10 @@ class FakePasswordHasher implements PasswordHasher {
   hash(password: string): Promise<string> {
     this.hashed.push(password);
     return Promise.resolve(`hashed:${password}`);
+  }
+
+  verify(): Promise<boolean> {
+    return Promise.reject(new Error('not used by RegisterUserUseCase'));
   }
 }
 
