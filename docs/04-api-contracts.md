@@ -34,6 +34,10 @@ academic; and a `.proto` file makes a breaking change visible at build time inst
   `title` names the problem *type* and does not vary between occurrences; `detail` is
   specific to the one at hand, and is omitted entirely on 5xx — that message was written
   for us, not for the caller.
+
+  `field` is present on validation failures and absent everywhere else. The failure that
+  makes the distinction matter is a rejected login: naming the field there would say
+  whether the handle exists, so it carries none — see the Identity section below.
 - Every response carries `X-Request-Id`, propagated as the OpenTelemetry trace id.
   *Not built yet — wiring it is [#12](https://github.com/samueldamatta/X-clone/issues/12).*
 
@@ -53,6 +57,31 @@ academic; and a `.proto` file makes a breaking change visible at build time inst
 Access tokens are short-lived JWTs (15 min) verified at the Gateway without a network hop.
 Refresh tokens are opaque, stored hashed, and **rotated on every use** — reuse of a spent
 refresh token revokes the whole session chain, which is how you detect a stolen token.
+Rotation and reuse detection are [#8](https://github.com/samueldamatta/X-clone/issues/8);
+login itself is built. The reasoning behind the split is in
+[`concepts/access-and-refresh-tokens.md`](concepts/access-and-refresh-tokens.md).
+
+```jsonc
+// POST /v1/auth/login
+{ "handle": "sam", "password": "correcthorse1" }
+
+// 200 OK — not 201: a session is created, but no URL addresses it
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxODQ3…",
+  "accessTokenExpiresAt": "2026-09-11T12:15:00.000Z",
+  "refreshToken": "3q2-7_9RkTZ8xN1pQvLmYbCdEfGhIjKlMnOpQrStUvW",
+  "refreshTokenExpiresAt": "2026-10-11T12:00:00.000Z",
+  "userId": "1847100000001"      // string, not a number
+}
+```
+
+The client sends the access token as `Authorization: Bearer <accessToken>`.
+
+**A failed login answers `401` with no `field` member, and the body is byte-for-byte the
+same for an unknown handle as for a wrong password.** This is the one place in the API where
+the `field` convention above is deliberately not followed: naming which half was wrong turns
+the endpoint into an account-enumeration oracle. A body that is not a JSON object with two
+strings is a `400`, also without a `field`, and also with one fixed message.
 
 ### Graph
 
@@ -153,13 +182,19 @@ service TimelineService {
 }
 
 service IdentityService {
-  // Built in Phase 2. GetUsers and VerifyToken arrive with the tickets that
-  // first need them — batched lookup in Phase 4, token verification in #6.
+  // Register and Login exist. GetUsers arrives in Phase 4, with the batched
+  // hydration that is its first consumer.
   rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
   rpc GetUsers(UserIdList) returns (UserList);
-  rpc VerifyToken(TokenRequest) returns (TokenClaims);
 }
 ```
+
+**There is deliberately no `VerifyToken`.** An earlier draft of this document listed one,
+and it contradicted the reason the access token is a JWT at all: if the Gateway has to call
+Identity to check a token, the network hop that the JWT exists to avoid is back, on every
+authenticated request. The Gateway verifies the signature itself with the shared secret —
+see [`concepts/access-and-refresh-tokens.md`](concepts/access-and-refresh-tokens.md).
 
 Two design rules visible above, both learned from systems that got them wrong:
 

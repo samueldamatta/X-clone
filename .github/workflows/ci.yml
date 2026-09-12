@@ -22,6 +22,17 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
+      # Build first, and not because anything here needs the output. The four
+      # packages in backend/libs publish their types through dist/index.d.ts,
+      # so until they are built, `@x-clone/proto` and friends resolve to
+      # nothing: eslint's type-aware rules see `any` and every value that came
+      # from one of them trips no-unsafe-*. That was 127 errors from about ten
+      # imports, on a clean checkout, while the same lint passed on a laptop
+      # that happened to have a stale dist lying around. Ordering it here is
+      # the cheap fix; resolving the libs from source instead (project
+      # references plus tsconfig paths) would remove the ordering constraint
+      # altogether, at the cost of dev and runtime resolving them differently.
+      - run: pnpm build
       # One flat config at the root covers every package, so this is a single
       # eslint run rather than a recursive one.
       - run: pnpm lint
@@ -29,7 +40,6 @@ jobs:
       # test run. Checking types is a separate step or it does not happen.
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm build
 
   go:
     name: go

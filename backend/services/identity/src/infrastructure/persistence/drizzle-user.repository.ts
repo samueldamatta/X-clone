@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { HandleTakenError } from '../../domain/errors';
-import type { UserRepository } from '../../domain/ports/user-repository';
+import type { StoredCredentials, UserRepository } from '../../domain/ports/user-repository';
 import type { User } from '../../domain/user';
 import type { Database } from './db';
 import { credentials, users } from './schema';
@@ -43,6 +43,23 @@ export class DrizzleUserRepository implements UserRepository {
       .where(eq(users.handle, handle))
       .limit(1);
     return rows.length > 0;
+  }
+
+  /**
+   * One query, not two. Fetching the user and then its credentials would
+   * be two round trips on the login path for a row that always exists when
+   * the other does — `credentials.user_id` is a primary key referencing
+   * `users.id`, so this join either matches once or not at all.
+   */
+  async findCredentialsByHandle(handle: string): Promise<StoredCredentials | undefined> {
+    const rows = await this.db
+      .select({ userId: users.id, passwordHash: credentials.passwordHash })
+      .from(users)
+      .innerJoin(credentials, eq(credentials.userId, users.id))
+      .where(eq(users.handle, handle))
+      .limit(1);
+
+    return rows[0];
   }
 
   /**

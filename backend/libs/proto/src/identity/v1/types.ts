@@ -17,8 +17,24 @@ export interface RegisterResponse {
   createdAt: string;
 }
 
+export interface LoginRequest {
+  handle: string;
+  password: string;
+  /** '' when the client sent no User-Agent — proto3 has no null. */
+  userAgent: string;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: string;
+  refreshTokenExpiresAt: string;
+  userId: string;
+}
+
 export interface IdentityServiceClient {
   register(request: RegisterRequest): Promise<RegisterResponse>;
+  login(request: LoginRequest): Promise<LoginResponse>;
 }
 
 export const IDENTITY_PACKAGE_NAME = 'identity.v1';

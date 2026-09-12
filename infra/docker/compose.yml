@@ -274,6 +274,13 @@ services:
       # mint the same id twice whenever both do so in the same millisecond,
       # and neither fails nor warns — see docs/concepts/snowflake-ids.md.
       SNOWFLAKE_NODE_ID: 1
+      # A development key, committed on purpose and useless anywhere else:
+      # it is public the moment this file is. At least 32 bytes, because
+      # HS256's MAC is 256 bits and a shorter key is the weakest link in
+      # the construction. The Gateway gets the same value when #7 teaches
+      # it to verify — that sharing is what HS256 costs, and
+      # docs/concepts/access-and-refresh-tokens.md says what it buys.
+      JWT_SECRET: dev-only-not-a-secret-change-me-32b
     ports:
       - '8081:8081'
     depends_on:

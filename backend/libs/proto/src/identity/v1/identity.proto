@@ -7,6 +7,7 @@ package identity.v1;
 // why this repo does not generate TypeScript from it (yet).
 service IdentityService {
   rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
 }
 
 message RegisterRequest {
@@ -21,4 +22,33 @@ message RegisterResponse {
   string display_name = 3;
   // RFC 3339.
   string created_at = 4;
+}
+
+message LoginRequest {
+  string handle = 1;
+  string password = 2;
+  // Whatever the client put in its User-Agent header, or empty. Recorded
+  // on the session so a person can recognise their own logins later; the
+  // server decides nothing from it.
+  string user_agent = 3;
+}
+
+message LoginResponse {
+  // A signed JWT. Short-lived, and verified by the Gateway with no call
+  // back to this service — see docs/concepts/access-and-refresh-tokens.md.
+  string access_token = 1;
+  // Opaque. It means nothing to whoever holds it; only its hash is stored,
+  // and it is a key into identity.sessions, which is what makes revoking
+  // it possible at all.
+  string refresh_token = 2;
+  // Both RFC 3339, matching created_at above. Absolute instants rather
+  // than "expires_in" seconds: the JWT's own exp claim is absolute, and
+  // two representations of one deadline is one more than is needed. The
+  // cost is that a client with a badly wrong clock refreshes at the wrong
+  // moment — it still recovers, because an expired access token answers
+  // 401 and the refresh path is the same either way.
+  string access_token_expires_at = 3;
+  string refresh_token_expires_at = 4;
+  // Snowflake, decimal string. Who the caller just proved to be.
+  string user_id = 5;
 }
