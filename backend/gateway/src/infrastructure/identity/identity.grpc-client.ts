@@ -10,11 +10,14 @@ import { loadSync } from '@grpc/proto-loader';
 import type { OnApplicationShutdown } from '@nestjs/common';
 import {
   identityProtoPath,
+  type GetProfileRequest,
   type IdentityServiceClient,
   type LoginRequest,
   type LoginResponse,
+  type Profile,
   type RegisterRequest,
   type RegisterResponse,
+  type UpdateProfileRequest,
 } from '@x-clone/proto';
 import { FIRST_SERVER_ERROR_STATUS } from '@x-clone/problem-details';
 import { toProblemDetails } from '../grpc/grpc-problem-details';
@@ -63,6 +66,8 @@ type UnaryCall<Request, Response> = (
 type IdentityRpcClient = Client & {
   register: UnaryCall<RegisterRequest, RegisterResponse>;
   login: UnaryCall<LoginRequest, LoginResponse>;
+  getProfile: UnaryCall<GetProfileRequest, Profile>;
+  updateProfile: UnaryCall<UpdateProfileRequest, Profile>;
 };
 
 /**
@@ -106,6 +111,23 @@ export class IdentityGrpcClient implements IdentityServiceClient, OnApplicationS
 
   login(request: LoginRequest): Promise<LoginResponse> {
     return this.call(this.client.login, request);
+  }
+
+  getProfile(request: GetProfileRequest): Promise<Profile> {
+    return this.call(this.client.getProfile, request);
+  }
+
+  /**
+   * `request` is passed through as built by the caller, and that is
+   * deliberate: a field the caller omitted must stay omitted all the way to
+   * the wire. `optional` in the .proto gives proto3 field presence, so an
+   * absent `bio` arrives absent at Identity and an empty one arrives empty —
+   * "leave it alone" and "clear it" stay two different instructions.
+   * Normalising this object here (filling defaults, say) would collapse
+   * them, which is the one thing this RPC cannot survive.
+   */
+  updateProfile(request: UpdateProfileRequest): Promise<Profile> {
+    return this.call(this.client.updateProfile, request);
   }
 
   /**

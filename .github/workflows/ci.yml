@@ -126,7 +126,7 @@ jobs:
         run: |
           docker compose -f infra/docker/compose.yml --profile app up -d \
             --wait --wait-timeout 300
-      - name: register an account through the gateway
+      - name: exercise the public API through the gateway
         run: ./scripts/integration.sh
       - name: logs on failure
         if: failure()

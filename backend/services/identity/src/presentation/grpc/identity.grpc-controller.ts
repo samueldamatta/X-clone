@@ -2,19 +2,27 @@ import { Metadata, status as GrpcStatus } from '@grpc/grpc-js';
 import { Controller, Inject } from '@nestjs/common';
 import { GrpcMethod, RpcException } from '@nestjs/microservices';
 import type {
+  GetProfileRequest,
   LoginRequest,
   LoginResponse,
+  Profile as ProfileMessage,
   RegisterRequest,
   RegisterResponse,
+  UpdateProfileRequest,
 } from '@x-clone/proto';
 import { withFieldViolation } from '@x-clone/proto';
+import { GetProfileUseCase } from '../../application/get-profile.use-case';
 import { LoginUseCase } from '../../application/login.use-case';
 import { RegisterUserUseCase } from '../../application/register-user.use-case';
+import { UpdateProfileUseCase } from '../../application/update-profile.use-case';
 import {
   DomainValidationError,
+  EmptyProfileUpdateError,
   HandleTakenError,
   InvalidCredentialsError,
+  ProfileNotFoundError,
 } from '../../domain/errors';
+import type { Profile } from '../../domain/profile';
 
 /**
  * Only the methods this controller calls — see the test for why not the
@@ -23,12 +31,16 @@ import {
  */
 type RegisterUser = Pick<RegisterUserUseCase, 'execute'>;
 type Login = Pick<LoginUseCase, 'execute'>;
+type GetProfile = Pick<GetProfileUseCase, 'execute'>;
+type UpdateProfile = Pick<UpdateProfileUseCase, 'execute'>;
 
 @Controller()
 export class IdentityGrpcController {
   constructor(
     @Inject(RegisterUserUseCase) private readonly registerUser: RegisterUser,
     @Inject(LoginUseCase) private readonly loginUser: Login,
+    @Inject(GetProfileUseCase) private readonly getProfileUseCase: GetProfile,
+    @Inject(UpdateProfileUseCase) private readonly updateProfileUseCase: UpdateProfile,
   ) {}
 
   @GrpcMethod('IdentityService', 'Register')
@@ -72,6 +84,56 @@ export class IdentityGrpcController {
       throw toRpcException(error, 'Login');
     }
   }
+
+  @GrpcMethod('IdentityService', 'GetProfile')
+  async getProfile(data: GetProfileRequest): Promise<ProfileMessage> {
+    try {
+      return toProfileMessage(await this.getProfileUseCase.execute(data.handle));
+    } catch (error) {
+      throw toRpcException(error, 'GetProfile');
+    }
+  }
+
+  @GrpcMethod('IdentityService', 'UpdateProfile')
+  async updateProfile(data: UpdateProfileRequest): Promise<ProfileMessage> {
+    try {
+      /**
+       * Spread only what the client sent. `optional` in the .proto means an
+       * unset field is absent from `data` entirely, and this rebuild has to
+       * preserve that: writing `displayName: data.displayName` would put the
+       * key on the object with the value undefined, and `'displayName' in
+       * input` — which is what the use case's `!== undefined` amounts to —
+       * would then read an omission as a request to change something.
+       *
+       * '' survives this, and must: it is how a bio is cleared.
+       */
+      const profile = await this.updateProfileUseCase.execute({
+        userId: data.userId,
+        ...(data.displayName !== undefined && { displayName: data.displayName }),
+        ...(data.bio !== undefined && { bio: data.bio }),
+      });
+
+      return toProfileMessage(profile);
+    } catch (error) {
+      throw toRpcException(error, 'UpdateProfile');
+    }
+  }
+}
+
+/**
+ * The domain's Date becomes RFC 3339 here and nowhere else, the same way
+ * Register and Login do it. protobuf has a Timestamp type; this system uses
+ * strings because the public API's JSON does, and one conversion is cheaper
+ * to keep honest than two.
+ */
+function toProfileMessage(profile: Profile): ProfileMessage {
+  return {
+    id: profile.id,
+    handle: profile.handle,
+    displayName: profile.displayName,
+    bio: profile.bio,
+    createdAt: profile.createdAt.toISOString(),
+  };
 }
 
 /**
@@ -103,6 +165,31 @@ function toRpcException(error: unknown, rpc: string): RpcException {
   if (error instanceof InvalidCredentialsError) {
     return new RpcException({
       code: GrpcStatus.UNAUTHENTICATED,
+      message: error.message,
+    });
+  }
+
+  /**
+   * NOT_FOUND, which the Gateway maps to 404. Safe to be specific about,
+   * unlike the login rejection above: a public profile read exists to
+   * answer "does this handle exist?", so there is nothing here for a
+   * generic message to protect.
+   */
+  if (error instanceof ProfileNotFoundError) {
+    return new RpcException({
+      code: GrpcStatus.NOT_FOUND,
+      message: error.message,
+    });
+  }
+
+  /**
+   * INVALID_ARGUMENT with no field violation — the second and last place in
+   * this service that carries none. The fault is the body as a whole, so
+   * there is no single field to name; see the error's own comment.
+   */
+  if (error instanceof EmptyProfileUpdateError) {
+    return new RpcException({
+      code: GrpcStatus.INVALID_ARGUMENT,
       message: error.message,
     });
   }

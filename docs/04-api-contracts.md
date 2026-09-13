@@ -35,9 +35,13 @@ academic; and a `.proto` file makes a breaking change visible at build time inst
   specific to the one at hand, and is omitted entirely on 5xx — that message was written
   for us, not for the caller.
 
-  `field` is present on validation failures and absent everywhere else. The failure that
-  makes the distinction matter is a rejected login: naming the field there would say
-  whether the handle exists, so it carries none — see the Identity section below.
+  `field` is present on validation failures and absent everywhere else. There are two
+  exceptions, both deliberate, both in the Identity section below:
+
+  - **A rejected login** names no field. Naming one would say whether the handle exists.
+  - **A rejected access token** names none either, for the same class of reason.
+  - **A `PATCH` that asks for nothing** names none, because there is no single field at
+    fault — the body as a whole is.
 - Every response carries `X-Request-Id`, propagated as the OpenTelemetry trace id.
   *Not built yet — wiring it is [#12](https://github.com/samueldamatta/X-clone/issues/12).*
 
@@ -51,8 +55,8 @@ academic; and a `.proto` file makes a breaking change visible at build time inst
 | `POST` | `/v1/auth/login` | Exchange credentials for an access + refresh token pair |
 | `POST` | `/v1/auth/refresh` | Rotate the refresh token, issue a new access token |
 | `POST` | `/v1/auth/logout` | Revoke the current session |
-| `GET` | `/v1/users/{handle}` | Public profile |
-| `PATCH` | `/v1/users/me` | Update own profile |
+| `GET` | `/v1/users/{handle}` | Public profile, no authentication |
+| `PATCH` | `/v1/users/me` | Update own profile, authenticated |
 
 Access tokens are short-lived JWTs (15 min) verified at the Gateway without a network hop.
 Refresh tokens are opaque, stored hashed, and **rotated on every use** — reuse of a spent
@@ -75,13 +79,102 @@ login itself is built. The reasoning behind the split is in
 }
 ```
 
-The client sends the access token as `Authorization: Bearer <accessToken>`.
+The client sends the access token as `Authorization: Bearer <accessToken>` — see
+**Authenticated requests** below for what the Gateway does with it.
 
 **A failed login answers `401` with no `field` member, and the body is byte-for-byte the
 same for an unknown handle as for a wrong password.** This is the one place in the API where
-the `field` convention above is deliberately not followed: naming which half was wrong turns
-the endpoint into an account-enumeration oracle. A body that is not a JSON object with two
+the `field` convention above is deliberately not followed — the first of the three
+exceptions listed there: naming which half was wrong turns the endpoint into an
+account-enumeration oracle. A body that is not a JSON object with two
 strings is a `400`, also without a `field`, and also with one fixed message.
+
+#### Profiles
+
+```jsonc
+// GET /v1/users/sam — no Authorization header, by design: a profile is
+// what a shared link points at, and a logged-out visitor must be able to
+// read one.
+// 200 OK
+{
+  "id": "92401505176391680",     // string, not a number
+  "handle": "sam",
+  "displayName": "Samuel",
+  "bio": "building a twitter clone",
+  "createdAt": "2026-09-12T23:30:35.571Z"
+}
+```
+
+**`id` and `handle` are both there on purpose.** A handle can be renamed; the Snowflake
+cannot. Anything that has to survive a rename — a mention, a bookmark, a follow row — refers
+to `id`, and `handle` is only how a human addresses the account.
+
+There is no `followerCount`. The column exists in `identity.users`, and nothing writes it
+until the Graph service exists, in Phase 3 ([`05-roadmap.md`](05-roadmap.md)). Publishing it
+now would mean every profile reporting zero followers as a fact.
+
+An unknown handle is a `404`. Unlike a failed login, this endpoint is an existence oracle by
+design — anyone can ask whether `@sam` is taken by visiting the page — so there is nothing
+left for a vague answer to protect.
+
+```jsonc
+// PATCH /v1/users/me
+// Authorization: Bearer <accessToken>
+{ "displayName": "Samuel", "bio": "" }
+
+// 200 OK — the profile as it now stands
+{ "id": "92401505176391680", "handle": "sam", "displayName": "Samuel", "bio": "", … }
+```
+
+**`me`, not `{id}`.** The account being edited comes from the access token and from nowhere
+else. There is no field in the request — path, query or body — that could name a different
+one, which is how "an account cannot edit anyone else's profile" is enforced: not by a check
+that could be forgotten, but by a request that has nowhere to say it. (A handle is 3-20
+characters, so no account can ever be called `me`, and the two routes cannot collide.)
+
+**Omitted means "leave it alone"; `""` means "clear it".** Sending only `displayName` leaves
+the bio untouched. Sending `"bio": ""` empties it. The two are carried apart all the way to
+the database, which is why `display_name` and `bio` are `optional` in `identity.proto` —
+proto3 gives a plain `string` no field presence, and collapsing the two would mean a rename
+silently erasing a bio. `null` is refused rather than read as "clear": this API already
+spells that instruction `""`.
+
+Fields the API does not know are ignored, so `{"displayname": "Sam"}` — wrong case — parses
+to a patch that asks for nothing, and **a patch that asks for nothing is a `400`**. Accepting
+it and answering `200` would be idempotent and defensible; it was rejected because a typo
+would then look exactly like a success.
+
+`200` rather than `204`: the response carries the profile as stored, so a client can see
+what normalisation did to what it sent — a display name is trimmed, and CRLF in a bio is
+folded to LF.
+
+#### Authenticated requests
+
+Send the access token as `Authorization: Bearer <accessToken>`. The Gateway verifies it
+locally, with no call to Identity — that is the whole reason the access token is a JWT, and
+[`concepts/verifying-jwts-at-the-edge.md`](concepts/verifying-jwts-at-the-edge.md) covers
+both what it buys and what it costs.
+
+**Every rejected token gets the identical response.** Absent, malformed, expired, tampered,
+signed with the wrong key: one `401`, one body, byte for byte, with no `detail` and no
+`field`.
+
+```jsonc
+// 401 Unauthorized
+// WWW-Authenticate: Bearer
+{ "type": "about:blank", "title": "Unauthorized", "status": 401 }
+```
+
+Telling a client its token *expired* would tell anyone else that the token they are holding
+is genuine and that only the clock stopped them — a different next move from "your forgery
+was wrong". `WWW-Authenticate` is present because RFC 7235 requires it on a 401, and bare
+because RFC 6750's `error="invalid_token"` / `error="expired_token"` parameters would put
+that distinction straight back.
+
+One inconsistency, stated rather than hidden: the `401` from a failed **login** carries no
+`WWW-Authenticate` header. Strictly, RFC 7235 asks for one on every 401. Sending "retry with
+a bearer token" to a client that just submitted a password would be advice it cannot act on,
+so that endpoint deviates on purpose.
 
 ### Graph
 

@@ -3,11 +3,15 @@ import { RpcException } from '@nestjs/microservices';
 import { readFieldViolation } from '@x-clone/proto';
 import { describe, expect, it } from 'vitest';
 import type { LoginInput, LoginResult } from '../../application/login.use-case';
+import type { UpdateProfileInput } from '../../application/update-profile.use-case';
 import {
   DomainValidationError,
+  EmptyProfileUpdateError,
   HandleTakenError,
   InvalidCredentialsError,
+  ProfileNotFoundError,
 } from '../../domain/errors';
+import type { Profile } from '../../domain/profile';
 import type { User } from '../../domain/user';
 import { IdentityGrpcController } from './identity.grpc-controller';
 
@@ -16,11 +20,19 @@ const neverCalled = {
 };
 
 function controllerWith(execute: (input: { handle: string; password: string }) => Promise<User>) {
-  return new IdentityGrpcController({ execute }, neverCalled);
+  return new IdentityGrpcController({ execute }, neverCalled, neverCalled, neverCalled);
 }
 
 function loginControllerWith(execute: (input: LoginInput) => Promise<LoginResult>) {
-  return new IdentityGrpcController(neverCalled, { execute });
+  return new IdentityGrpcController(neverCalled, { execute }, neverCalled, neverCalled);
+}
+
+function getProfileControllerWith(execute: (handle: string) => Promise<Profile>) {
+  return new IdentityGrpcController(neverCalled, neverCalled, { execute }, neverCalled);
+}
+
+function updateProfileControllerWith(execute: (input: UpdateProfileInput) => Promise<Profile>) {
+  return new IdentityGrpcController(neverCalled, neverCalled, neverCalled, { execute });
 }
 
 /** Pulls the RpcException's payload out, which is where the code lives. */
@@ -237,6 +249,140 @@ describe('IdentityGrpcController.login', () => {
       expect(body.code).toBe(GrpcStatus.INTERNAL);
       expect(body.message).toBe('internal error');
       expect(body.message).not.toContain('hunter2');
+    }
+  });
+});
+
+const SAM: Profile = {
+  id: '1847100000001',
+  handle: 'sam',
+  displayName: 'Sam',
+  bio: 'building a twitter clone',
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+};
+
+describe('IdentityGrpcController.getProfile', () => {
+  it('maps a profile to a wire response with an ISO timestamp', async () => {
+    const controller = getProfileControllerWith(() => Promise.resolve(SAM));
+
+    expect(await controller.getProfile({ handle: 'sam' })).toEqual({
+      id: '1847100000001',
+      handle: 'sam',
+      displayName: 'Sam',
+      bio: 'building a twitter clone',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('maps ProfileNotFoundError to NOT_FOUND', async () => {
+    const controller = getProfileControllerWith(() => {
+      throw ProfileNotFoundError.byHandle('nobody');
+    });
+
+    await expect(controller.getProfile({ handle: 'nobody' })).rejects.toSatisfy(
+      (error: unknown) => {
+        expect(rpcBody(error).code).toBe(GrpcStatus.NOT_FOUND);
+        return true;
+      },
+    );
+  });
+
+  it('carries no field violation on a not-found: nothing there names a field', async () => {
+    const controller = getProfileControllerWith(() => {
+      throw ProfileNotFoundError.byHandle('nobody');
+    });
+
+    try {
+      await controller.getProfile({ handle: 'nobody' });
+      expect.unreachable();
+    } catch (error) {
+      expect(rpcBody(error).metadata).toBeUndefined();
+    }
+  });
+});
+
+describe('IdentityGrpcController.updateProfile', () => {
+  it('forwards only the fields the client actually sent', async () => {
+    let seen: UpdateProfileInput | undefined;
+    const controller = updateProfileControllerWith((input) => {
+      seen = input;
+      return Promise.resolve({ ...SAM, displayName: 'Samuel' });
+    });
+
+    await controller.updateProfile({ userId: SAM.id, displayName: 'Samuel' });
+
+    // `bio` must be absent, not present-and-undefined: the use case reads
+    // absence as "leave it alone", and a key holding undefined would be a
+    // request to change something the client never mentioned.
+    expect(seen).toEqual({ userId: SAM.id, displayName: 'Samuel' });
+    expect('bio' in (seen ?? {})).toBe(false);
+  });
+
+  it('forwards an empty bio, which is a value and not an omission', async () => {
+    let seen: UpdateProfileInput | undefined;
+    const controller = updateProfileControllerWith((input) => {
+      seen = input;
+      return Promise.resolve({ ...SAM, bio: '' });
+    });
+
+    await controller.updateProfile({ userId: SAM.id, bio: '' });
+
+    expect(seen).toEqual({ userId: SAM.id, bio: '' });
+  });
+
+  it('takes the subject from user_id and offers no other way to name one', async () => {
+    let seen: UpdateProfileInput | undefined;
+    const controller = updateProfileControllerWith((input) => {
+      seen = input;
+      return Promise.resolve(SAM);
+    });
+
+    await controller.updateProfile({ userId: SAM.id, displayName: 'Samuel' });
+
+    expect(seen?.userId).toBe(SAM.id);
+  });
+
+  it('maps EmptyProfileUpdateError to INVALID_ARGUMENT with no field', async () => {
+    const controller = updateProfileControllerWith(() => {
+      throw new EmptyProfileUpdateError();
+    });
+
+    try {
+      await controller.updateProfile({ userId: SAM.id });
+      expect.unreachable();
+    } catch (error) {
+      expect(rpcBody(error).code).toBe(GrpcStatus.INVALID_ARGUMENT);
+      // Every other INVALID_ARGUMENT in this service carries one. This is
+      // the exception, because the body as a whole is the fault.
+      expect(rpcBody(error).metadata).toBeUndefined();
+    }
+  });
+
+  it('maps a validation failure to INVALID_ARGUMENT naming the field', async () => {
+    const controller = updateProfileControllerWith(() => {
+      throw new DomainValidationError('displayName', 'must not be empty');
+    });
+
+    try {
+      await controller.updateProfile({ userId: SAM.id, displayName: '' });
+      expect.unreachable();
+    } catch (error) {
+      const body = rpcBody(error);
+      expect(body.code).toBe(GrpcStatus.INVALID_ARGUMENT);
+      expect(readFieldViolation(body.metadata!)?.field).toBe('displayName');
+    }
+  });
+
+  it('maps a vanished account to NOT_FOUND', async () => {
+    const controller = updateProfileControllerWith(() => {
+      throw ProfileNotFoundError.byId('999');
+    });
+
+    try {
+      await controller.updateProfile({ userId: '999', displayName: 'Ghost' });
+      expect.unreachable();
+    } catch (error) {
+      expect(rpcBody(error).code).toBe(GrpcStatus.NOT_FOUND);
     }
   });
 });
