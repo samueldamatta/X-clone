@@ -1,6 +1,7 @@
 import {
   credentials,
   loadPackageDefinition,
+  type ChannelCredentials,
   Server,
   ServerCredentials,
   type ServiceDefinition,
@@ -63,7 +64,7 @@ const proto = loadPackageDefinition(definition) as unknown as {
     v1: {
       IdentityService: {
         service: ServiceDefinition;
-        new (url: string, credentials: ReturnType<typeof credentials.createInsecure>): unknown;
+        new (url: string, channelCredentials: ChannelCredentials): unknown;
       };
     };
   };
