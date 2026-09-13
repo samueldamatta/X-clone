@@ -26,6 +26,7 @@ These are written to be read in order the first time, and dug into individually 
 | [The local environment](local-environment.md) | How do nine services and six data stores run on one laptop, the same way in CI? |
 | [Internal gRPC](internal-grpc.md) | Why do the services speak protobuf to each other while the world outside gets REST? |
 | [Access and refresh tokens](access-and-refresh-tokens.md) | Why two tokens instead of one, and why does a failed login refuse to say what was wrong? |
+| [Verifying JWTs at the edge](verifying-jwts-at-the-edge.md) | What does the Gateway do with a token, and why is verification the dangerous half? |
 
 ## The two that make the above survivable
 

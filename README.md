@@ -20,12 +20,30 @@ an asynchronous event backbone, Snowflake IDs, and CQRS.
 > tiers and a trigger table naming the measured threshold at which each component stops
 > being premature.
 
-**Status:** Phase 1 — infrastructure baseline. One `docker compose up` brings up Postgres,
-Redis, Redpanda and the observability stack, all healthchecked, with a smoke test that
-asserts the pipeline actually works rather than that the containers are running. Services
-themselves start in Phase 2: in a distributed system the expensive mistakes are the service
-boundaries and the shape of the data flow, and those were nearly free to change while they
-were still a diagram.
+**Status:** Phase 2 — Identity and the Gateway, in progress.
+
+Phase 1 is done: one `docker compose up` brings up Postgres, Redis, Redpanda and the
+observability stack, all healthchecked, with a smoke test that asserts the pipeline actually
+works rather than that the containers are running. It came first because in a distributed
+system the expensive mistakes are the service boundaries and the shape of the data flow, and
+those were nearly free to change while they were still a diagram.
+
+What answers a real HTTP request today, through the Gateway, over gRPC, against Postgres:
+
+| | |
+|---|---|
+| `POST /v1/auth/register` | argon2id, Snowflake ids, case-insensitive handles |
+| `POST /v1/auth/login` | a short-lived JWT and an opaque refresh token, stored hashed |
+| `GET /v1/users/{handle}` | public profile, no authentication |
+| `PATCH /v1/users/me` | own profile, with the access token verified at the edge |
+
+Still open in Phase 2: refresh rotation and reuse detection
+([#8](https://github.com/samueldamatta/X-clone/issues/8)), logout
+([#9](https://github.com/samueldamatta/X-clone/issues/9)), token-bucket rate limiting
+([#10](https://github.com/samueldamatta/X-clone/issues/10)) and request tracing
+([#12](https://github.com/samueldamatta/X-clone/issues/12)). `scripts/integration.sh`
+exercises everything in that table against the running containers — 58 assertions, nothing
+stubbed.
 
 ## The interesting problem
 
@@ -120,8 +138,8 @@ anyone can list patterns; knowing what each takes from you is the part that tran
 | # | Phase | Teaches |
 |---|---|---|
 | 0 | ~~Design & documentation~~ | Deciding boundaries while they are cheap to move |
-| 1 | **Infrastructure baseline** ← *here* | Running a distributed environment locally |
-| 2 | Identity + Gateway | Snowflake IDs, token rotation, token-bucket rate limiting |
+| 1 | ~~Infrastructure baseline~~ | Running a distributed environment locally |
+| 2 | **Identity + Gateway** ← *here* | Snowflake IDs, JWT verification, token rotation, rate limiting |
 | 3 | Tweet + Graph | The outbox pattern, protobuf contracts |
 | 4 | **Fanout Worker + Timeline API** | Hybrid fan-out, Kafka consumers, idempotency |
 | 5 | Frontend | Infinite scroll, designing around eventual consistency |

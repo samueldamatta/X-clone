@@ -9,6 +9,7 @@ import {
   Patch,
   UseGuards,
 } from '@nestjs/common';
+import type { Profile as ProtoProfile } from '@x-clone/proto';
 import { IdentityGrpcClient } from '../../infrastructure/identity/identity.grpc-client';
 import type { VerifiedAccessToken } from '../../infrastructure/security/hs256-access-token-verifier';
 import { AccessTokenGuard, Principal } from './access-token.guard';
@@ -49,9 +50,9 @@ export class UsersController {
    * putting a guard here would mean a logged-out visitor cannot read the
    * page a link was shared to.
    *
-   * Declared after the PATCH below in the file, but that ordering is not
-   * load-bearing: Nest matches on method *and* path, so `:handle` and `me`
-   * never compete.
+   * Declared before the PATCH below, and that ordering is not load-bearing
+   * in either direction: Nest matches on method *and* path, so `:handle` and
+   * `me` never compete.
    */
   @Get(':handle')
   async profile(@Param('handle') handle: string): Promise<PublicProfile> {
@@ -100,7 +101,7 @@ export class UsersController {
  * other response in this Gateway: the day the .proto grows a field, it must
  * not reach the public API because nobody remembered to strip it.
  */
-function toPublicProfile(profile: PublicProfile): PublicProfile {
+function toPublicProfile(profile: ProtoProfile): PublicProfile {
   return {
     id: profile.id,
     handle: profile.handle,

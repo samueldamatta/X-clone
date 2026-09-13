@@ -31,9 +31,23 @@ export interface AuthenticatedRequest extends Request {
  * Proves who the caller is, locally, before the controller runs.
  *
  * Everything expensive is on the far side of this: no gRPC call, no query,
- * not even a body parse in the handler. An unauthenticated request costs
- * one HMAC and stops — which is the point of the acceptance criterion "an
- * unauthenticated update attempt is rejected before any work is done".
+ * no argon2, no write. An unauthenticated request costs one HMAC and stops.
+ *
+ * One thing does happen first, and it is worth being exact about rather
+ * than claiming a purity this does not have. Express's JSON parser is
+ * registered globally in main.ts, so the body is parsed *before* any guard
+ * runs — Nest's request pipeline does not exist yet at that point. A
+ * request with no token and a malformed body therefore answers 400, and one
+ * over the 100 kB limit answers 413, in both cases without ever reaching
+ * this class.
+ *
+ * That is a deviation from a strict reading of "rejected before any work is
+ * done", and it is accepted for now. It leaks nothing about the token or
+ * about any account — both answers are identical for a caller holding a
+ * perfectly good token — and the work it admits is bounded by the parser's
+ * own limit. The real defence against someone spending that budget in a
+ * loop is rate limiting at the edge (#10), not guard ordering.
+ * scripts/integration.sh pins the behaviour so it cannot drift unnoticed.
  */
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
