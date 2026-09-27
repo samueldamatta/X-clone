@@ -1,11 +1,18 @@
 import { HttpStatus } from '@nestjs/common';
 import { ProblemDetailsException } from '@x-clone/problem-details';
-import type { LoginRequest, IssuedTokens, RegisterRequest, RegisterResponse } from '@x-clone/proto';
+import type {
+  IssuedTokens,
+  LoginRequest,
+  RefreshRequest,
+  RegisterRequest,
+  RegisterResponse,
+} from '@x-clone/proto';
 import { describe, expect, it } from 'vitest';
 import { AuthController } from './auth.controller';
 
 const loginNotCalled = () => Promise.reject(new Error('login not exercised by this test'));
 const registerNotCalled = () => Promise.reject(new Error('register not exercised by this test'));
+const refreshNotCalled = () => Promise.reject(new Error('refresh not exercised by this test'));
 
 /**
  * A plain function, not a mock of IdentityGrpcClient. Constructing the real
@@ -20,6 +27,7 @@ function controllerWith(register: (request: RegisterRequest) => Promise<Register
       return register(request);
     },
     login: loginNotCalled,
+    refresh: refreshNotCalled,
   });
   return { controller, calls };
 }
@@ -31,6 +39,20 @@ function loginControllerWith(login: (request: LoginRequest) => Promise<IssuedTok
     login: (request) => {
       calls.push(request);
       return login(request);
+    },
+    refresh: refreshNotCalled,
+  });
+  return { controller, calls };
+}
+
+function refreshControllerWith(refresh: (request: RefreshRequest) => Promise<IssuedTokens>) {
+  const calls: RefreshRequest[] = [];
+  const controller = new AuthController({
+    register: registerNotCalled,
+    login: loginNotCalled,
+    refresh: (request) => {
+      calls.push(request);
+      return refresh(request);
     },
   });
   return { controller, calls };
@@ -202,5 +224,42 @@ describe('AuthController.login', () => {
     const error = (await failure.catch((caught: unknown) => caught)) as ProblemDetailsException;
 
     expect(JSON.stringify(error.toBody())).not.toContain('42');
+  });
+});
+
+describe('AuthController.refresh', () => {
+  it('forwards the token and returns only the five public fields', async () => {
+    const { controller, calls } = refreshControllerWith(() =>
+      Promise.resolve({ ...aTokenPair, sessionId: '999' } as IssuedTokens),
+    );
+
+    const response = await controller.refresh({ refreshToken: 'opaque-1' });
+
+    expect(calls).toEqual([{ refreshToken: 'opaque-1' }]);
+    expect(response).toEqual({
+      accessToken: 'header.payload.signature',
+      accessTokenExpiresAt: '2026-08-20T12:15:00.000Z',
+      refreshToken: 'opaque-refresh-token',
+      refreshTokenExpiresAt: '2026-09-19T12:00:00.000Z',
+      userId: '1847100000001',
+    });
+  });
+
+  it('rejects a malformed body without spending a call on Identity', async () => {
+    const { controller, calls } = refreshControllerWith(() => Promise.resolve(aTokenPair));
+
+    await expect(controller.refresh({})).rejects.toBeInstanceOf(ProblemDetailsException);
+    expect(calls).toEqual([]);
+  });
+
+  it('lets a revoked session’s 401 through untouched', async () => {
+    const unauthorized = new ProblemDetailsException({
+      status: HttpStatus.UNAUTHORIZED,
+      title: 'Unauthorized',
+      detail: 'invalid refresh token',
+    });
+    const { controller } = refreshControllerWith(() => Promise.reject(unauthorized));
+
+    await expect(controller.refresh({ refreshToken: 'opaque-1' })).rejects.toBe(unauthorized);
   });
 });
