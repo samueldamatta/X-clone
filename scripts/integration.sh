@@ -353,8 +353,8 @@ else
   bad "expected 2 live sessions, found ${live:-<none>}"
 fi
 
-distinct=$(psql_ "SELECT count(DISTINCT refresh_token_hash) FROM identity.sessions
-                  WHERE user_id = $user_id;")
+distinct=$(psql_ "SELECT count(DISTINCT t.token_hash) FROM identity.refresh_tokens t
+                  JOIN identity.sessions s ON s.id = t.session_id WHERE s.user_id = $user_id;")
 if [ "$distinct" = "2" ]; then
   ok "each session stores its own distinct token hash"
 else
@@ -364,22 +364,25 @@ fi
 # The whole reason the column holds a hash. Both halves matter: the token
 # must be absent, and the row must exist — an empty table would satisfy the
 # first on its own.
-leaked=$(psql_ "SELECT count(*) FROM identity.sessions
-                WHERE refresh_token_hash LIKE '%$refresh_token%';")
-hashed=$(psql_ "SELECT count(*) FROM identity.sessions
-                WHERE user_id = $user_id AND refresh_token_hash ~ '^[0-9a-f]{64}\$';")
+leaked=$(psql_ "SELECT count(*) FROM identity.refresh_tokens
+                WHERE token_hash LIKE '%$refresh_token%';")
+hashed=$(psql_ "SELECT count(*) FROM identity.refresh_tokens t
+                JOIN identity.sessions s ON s.id = t.session_id
+                WHERE s.user_id = $user_id AND t.token_hash ~ '^[0-9a-f]{64}\$';")
 if [ "$leaked" = "0" ] && [ "$hashed" = "2" ]; then
   ok "only hashes are stored — the refresh token itself is nowhere in the table"
 else
   bad "refresh token storage is wrong" "leaked=${leaked:-?} hashed=${hashed:-?}"
 fi
 
-# Nothing anywhere in the row, not just in the hash column: a token parked
-# in user_agent would be just as leaked.
-anywhere=$(psql_ "SELECT count(*) FROM identity.sessions
-                  WHERE sessions::text LIKE '%$refresh_token%';")
+# Nothing anywhere in either table, not just in the hash column: a token
+# parked in user_agent would be just as leaked.
+anywhere=$(psql_ "SELECT (SELECT count(*) FROM identity.sessions
+                          WHERE sessions::text LIKE '%$refresh_token%')
+                       + (SELECT count(*) FROM identity.refresh_tokens
+                          WHERE refresh_tokens::text LIKE '%$refresh_token%');")
 if [ "$anywhere" = "0" ]; then
-  ok "the refresh token appears in no column of the sessions table"
+  ok "the refresh token appears in no column of sessions or refresh_tokens"
 else
   bad "the refresh token is stored somewhere in the row"
 fi

@@ -1,25 +1,68 @@
-import type { SessionRepository } from '../../domain/ports/session-repository';
+import { and, eq, exists, isNull } from 'drizzle-orm';
+import type { SessionRepository, SessionWithToken } from '../../domain/ports/session-repository';
+import type { StoredRefreshToken } from '../../domain/refresh-token';
 import type { Session } from '../../domain/session';
 import type { Database } from './db';
-import { sessions } from './schema';
+import { refreshTokens, sessions } from './schema';
 
-/**
- * A plain insert, and no transaction: one row, one statement, already
- * atomic. DrizzleUserRepository.create wraps its work because it touches
- * two tables and half of that would be a user with no password.
- */
 export class DrizzleSessionRepository implements SessionRepository {
   constructor(private readonly db: Database) {}
 
-  async create(session: Session): Promise<void> {
-    await this.db.insert(sessions).values({
-      id: session.id,
-      userId: session.userId,
-      refreshTokenHash: session.refreshTokenHash,
-      expiresAt: session.expiresAt,
-      revokedAt: session.revokedAt,
-      userAgent: session.userAgent,
-      createdAt: session.createdAt,
+  async create(session: Session, firstToken: StoredRefreshToken): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.insert(sessions).values(session);
+      await tx.insert(refreshTokens).values(firstToken);
     });
+  }
+
+  async findByTokenHash(tokenHash: string): Promise<SessionWithToken | undefined> {
+    const rows = await this.db
+      .select({ session: sessions, token: refreshTokens })
+      .from(refreshTokens)
+      .innerJoin(sessions, eq(sessions.id, refreshTokens.sessionId))
+      .where(eq(refreshTokens.tokenHash, tokenHash))
+      .limit(1);
+
+    return rows[0];
+  }
+
+  /**
+   * The WHERE is the whole guard. Two concurrent UPDATEs of one row
+   * serialise on its lock, and Postgres re-checks `spent_at IS NULL`
+   * against the winner's committed row — so the second matches nothing.
+   */
+  async rotate(spentTokenId: string, next: StoredRefreshToken, spentAt: Date): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const spent = await tx
+        .update(refreshTokens)
+        .set({ spentAt })
+        .where(
+          and(
+            eq(refreshTokens.id, spentTokenId),
+            isNull(refreshTokens.spentAt),
+            exists(
+              tx
+                .select({ id: sessions.id })
+                .from(sessions)
+                .where(and(eq(sessions.id, refreshTokens.sessionId), isNull(sessions.revokedAt))),
+            ),
+          ),
+        )
+        .returning({ id: refreshTokens.id });
+
+      if (spent.length === 0) {
+        return false;
+      }
+
+      await tx.insert(refreshTokens).values(next);
+      return true;
+    });
+  }
+
+  async revoke(sessionId: string, revokedAt: Date): Promise<void> {
+    await this.db
+      .update(sessions)
+      .set({ revokedAt })
+      .where(and(eq(sessions.id, sessionId), isNull(sessions.revokedAt)));
   }
 }
