@@ -61,8 +61,7 @@ academic; and a `.proto` file makes a breaking change visible at build time inst
 Access tokens are short-lived JWTs (15 min) verified at the Gateway without a network hop.
 Refresh tokens are opaque, stored hashed, and **rotated on every use** — reuse of a spent
 refresh token revokes the whole session chain, which is how you detect a stolen token.
-Rotation and reuse detection are [#8](https://github.com/samueldamatta/X-clone/issues/8);
-login itself is built. The reasoning behind the split is in
+The reasoning behind the split, and behind rotation, is in
 [`concepts/access-and-refresh-tokens.md`](concepts/access-and-refresh-tokens.md).
 
 ```jsonc
@@ -88,6 +87,38 @@ the `field` convention above is deliberately not followed — the first of the t
 exceptions listed there: naming which half was wrong turns the endpoint into an
 account-enumeration oracle. A body that is not a JSON object with two
 strings is a `400`, also without a `field`, and also with one fixed message.
+
+#### Refresh
+
+```jsonc
+// POST /v1/auth/refresh — no Authorization header: this is called precisely
+// when the access token has expired.
+{ "refreshToken": "3q2-7_9RkTZ8xN1pQvLmYbCdEfGhIjKlMnOpQrStUvW" }
+
+// 200 OK — the same shape as login. Both tokens are new; the one sent is now spent.
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxODQ3…",
+  "accessTokenExpiresAt": "2026-09-11T12:35:00.000Z",
+  "refreshToken": "Zx8-kPq2Lm_7vN4tRb1YcWd9EfGh3IjKoMnPqRsTuVw",
+  "refreshTokenExpiresAt": "2026-10-11T12:00:00.000Z",  // unchanged: 30 days from login
+  "userId": "1847100000001"
+}
+```
+
+A refresh token works **once**. Sending one that was already exchanged is treated as proof
+that it was copied, and revokes the whole session — every refresh token that login ever
+produced, the newest included. The account's other sessions are untouched.
+
+**Every rejected refresh is the same `401`**, byte for byte, with no `detail` and no
+`field`: an unknown token, a spent one, one whose session was revoked, and one past its
+session's expiry all look alike. For the client, `401` here means "log in again", and it
+must not retry. A `503` or `504` means Identity is unreachable, and it should retry later —
+those are the two outcomes a client has to tell apart. A body with no `refreshToken` string
+is a `400` naming `field: "refreshToken"`.
+
+Two refreshes of the same token at the same moment — two tabs, typically — count as reuse:
+exactly one succeeds, and the session is then revoked. A client must make refreshes
+single-flight across its tabs.
 
 #### Profiles
 
@@ -275,10 +306,13 @@ service TimelineService {
 }
 
 service IdentityService {
-  // Register and Login exist. GetUsers arrives in Phase 4, with the batched
+  // All but GetUsers exist. GetUsers arrives in Phase 4, with the batched
   // hydration that is its first consumer.
   rpc Register(RegisterRequest) returns (RegisterResponse);
-  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Login(LoginRequest) returns (IssuedTokens);
+  rpc Refresh(RefreshRequest) returns (IssuedTokens);
+  rpc GetProfile(GetProfileRequest) returns (Profile);
+  rpc UpdateProfile(UpdateProfileRequest) returns (Profile);
   rpc GetUsers(UserIdList) returns (UserList);
 }
 ```

@@ -61,7 +61,7 @@ Eight services. Full detail in [`docs/01-system-design.md`](docs/01-system-desig
 | Service | Runtime | Port | Owns |
 |---|---|---|---|
 | gateway | NestJS | 8080 | Public edge: JWT, rate limiting, aggregation |
-| identity | NestJS | 8081 | `users`, `credentials`, `sessions` |
+| identity | NestJS | 8081 | `users`, `credentials`, `sessions`, `refresh_tokens` |
 | tweet | NestJS | 8082 | `tweets`, `likes`, `retweets`, `outbox` |
 | media | NestJS | 8083 | Upload metadata, presigned URLs |
 | notification | NestJS | 8084 | `notifications` + WebSocket |

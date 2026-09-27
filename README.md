@@ -34,15 +34,15 @@ What answers a real HTTP request today, through the Gateway, over gRPC, against 
 |---|---|
 | `POST /v1/auth/register` | argon2id, Snowflake ids, case-insensitive handles |
 | `POST /v1/auth/login` | a short-lived JWT and an opaque refresh token, stored hashed |
+| `POST /v1/auth/refresh` | rotation — each refresh token works once, and replaying one revokes its whole session |
 | `GET /v1/users/{handle}` | public profile, no authentication |
 | `PATCH /v1/users/me` | own profile, with the access token verified at the edge |
 
-Still open in Phase 2: refresh rotation and reuse detection
-([#8](https://github.com/samueldamatta/X-clone/issues/8)), logout
+Still open in Phase 2: logout
 ([#9](https://github.com/samueldamatta/X-clone/issues/9)), token-bucket rate limiting
 ([#10](https://github.com/samueldamatta/X-clone/issues/10)) and request tracing
 ([#12](https://github.com/samueldamatta/X-clone/issues/12)). `scripts/integration.sh`
-exercises everything in that table against the running containers — 58 assertions, nothing
+exercises everything in that table against the running containers — 71 assertions, nothing
 stubbed.
 
 ## The interesting problem

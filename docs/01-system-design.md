@@ -82,7 +82,7 @@ Services are cut where the *reasons to change* diverge, not where the nouns do.
 | Service | Runtime | Owns | Why this is a boundary |
 |---|---|---|---|
 | **Gateway / BFF** | NestJS | — | The only public surface. JWT verification, rate limiting, response aggregation |
-| **Identity** | NestJS | `users`, `credentials`, `sessions` | Changes for security reasons on a different cadence from product features |
+| **Identity** | NestJS | `users`, `credentials`, `sessions`, `refresh_tokens` | Changes for security reasons on a different cadence from product features |
 | **Graph** | Go | `follows`, follower counts | Queried on *every* fan-out — the highest-QPS internal service |
 | **Tweet** | NestJS | `tweets`, `likes`, `retweets` | The write-model system of record; owns ID generation and the outbox |
 | **Timeline API** | Go | reads Redis timelines | Latency-critical read path; merge-sort and hydration are CPU/IO bound |
