@@ -1,10 +1,10 @@
 # Access and refresh tokens
 
-> **Scope.** This covers what login builds: two tokens of different natures, and why a
-> failed login must give nothing away. Rotation and reuse detection
-> ([#8](https://github.com/samueldamatta/X-clone/issues/8)) and token-bucket rate limiting
-> ([#10](https://github.com/samueldamatta/X-clone/issues/10)) belong to this document too
-> and are not written yet — they arrive with the code that makes them real.
+> **Scope.** This covers two tokens of different natures, why a failed login must give
+> nothing away, and how a refresh token that works exactly once turns a stolen copy into
+> evidence ([#8](https://github.com/samueldamatta/X-clone/issues/8)). Token-bucket rate
+> limiting ([#10](https://github.com/samueldamatta/X-clone/issues/10)) belongs here too and
+> is not written yet — it arrives with the code that makes it real.
 
 ## The problem
 
@@ -75,10 +75,10 @@ Two tokens, because there are two jobs and no single token does both well.
 |---|---|---|
 | Form | Signed JWT | 32 random bytes, base64url |
 | Says anything? | Yes — account id, session id, expiry | Nothing. It is a lookup key |
-| Lifetime | 15 minutes | 30 days |
-| Checked how? | Signature, locally, no network | Row in `identity.sessions` |
+| Lifetime | 15 minutes | Until exchanged — at most 30 days from login |
+| Checked how? | Signature, locally, no network | Row in `identity.refresh_tokens` |
 | Sent when? | Every authenticated request | Only to `/v1/auth/refresh` |
-| Revocable? | **No** | Yes — one `UPDATE` |
+| Revocable? | **No** | Yes — one `UPDATE` on its session |
 | Stored where? | Nowhere. It is self-contained | Only its **hash** |
 
 The access token is checked constantly and never revoked. The refresh token is revocable and
@@ -251,6 +251,171 @@ rejects a two-character handle with a 400 naming the field. Login does not, beca
 for "handle too short" beside a 401 for "handle unknown" restores exactly the distinction
 everything above removes. A handle too short to register is simply a handle nobody has.
 
+## A refresh token works once
+
+The split above leaves one hole. The refresh token lives 30 days, is revocable, and is
+almost never checked — so a stolen one is 30 days of fresh access tokens for whoever holds
+it, and the person it belongs to has no way to know. Revocability only helps if someone
+knows there is something to revoke.
+
+**Rotation** closes it. `POST /v1/auth/refresh` does not just hand out a new access token:
+it hands out a new refresh token too, and marks the one presented as **spent**. A refresh
+token is good for exactly one exchange.
+
+A worked example. Sam logs in on a laptop and gets `A`. Fifteen minutes later the laptop
+refreshes:
+
+```text
+login            → A
+refresh(A)       → B      A is spent
+refresh(B)       → C      B is spent
+refresh(A)       → 401    ← somebody is holding a copy of A
+```
+
+The last line is the point. Nobody honest presents `A` after it was exchanged — the laptop
+threw it away the moment it received `B`. So a spent token arriving is not a mistake to
+reject quietly; it is **evidence that the token was copied**.
+
+### Reuse detection: why the whole chain dies
+
+What the server knows at that moment is only that two parties held `A`. It does not know
+which of them is the thief:
+
+- If the thief used `A` first, *they* hold the live token now, and the laptop is the one
+  arriving with a spent `A`.
+- If the laptop refreshed first, the thief is the one arriving with a spent `A`.
+
+Rejecting just the presented token would be right in the second case and would leave the
+thief logged in forever in the first. So the response to a replay is to revoke **every
+token in the chain** — `A`, `B`, `C`, and whatever is newest — by revoking the session they
+belong to. Both parties are signed out. The legitimate one logs in again with a password
+the thief does not have; the thief has nothing left.
+
+That is a real cost to an innocent user, paid deliberately: being asked to log in again is
+the correct outcome when a credential has demonstrably leaked. And it is scoped. The chain
+is one login; the same account's phone, which logged in separately, is untouched.
+
+### Where the chain lives
+
+`identity.sessions` held one `refresh_token_hash` per login. There were three ways to
+make it hold a chain.
+
+**Overwrite the hash on each rotation.** One `UPDATE`, no new table — and it makes reuse
+detection impossible. After `refresh(A)` the row holds `hash(B)`; `hash(A)` is gone. When
+the copy of `A` arrives, the lookup finds nothing, and "this token was already spent" is
+indistinguishable from "this token never existed". The replay is rejected, and nobody
+learns that it happened.
+
+**A new `sessions` row per rotation, linked by a parent id.** Keeps history, but the
+session id changes every fifteen minutes — and the session id is the access token's `sid`
+claim, which exists so that #9's logout can revoke *this login*. A login whose identity
+changes four times an hour is not something logout can point at.
+
+**A separate `refresh_tokens` table.** What was built:
+
+```sql
+CREATE TABLE refresh_tokens (
+  id          BIGINT PRIMARY KEY,
+  session_id  BIGINT NOT NULL REFERENCES sessions(id),
+  token_hash  TEXT NOT NULL UNIQUE,   -- the lookup, and never the token itself
+  spent_at    TIMESTAMPTZ,            -- null until exchanged; never deleted
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+The session is the chain; its id never changes. Each token is a row pointing at it.
+Revoking the chain is one `UPDATE sessions SET revoked_at = now()`, and every token in it —
+the newest included — is dead at once, because a refresh checks its session before it
+checks anything else. The cost is a table that gains a row every fifteen minutes per active
+client and never loses one.
+
+### Two tabs, one token
+
+Two browser tabs share one refresh token, and both notice the access token expired at the
+same moment. This is the normal case, not an edge one.
+
+The naive implementation reads the row, sees `spent_at IS NULL`, and writes. Two requests
+interleaved like that both read "unspent", both write, and both return a new token. The
+chain has **forked**: two live tokens, and a thief who wins that race holds a branch that
+no replay will ever expose, because nothing they present is ever spent.
+
+The guard is that the write carries its own condition:
+
+```sql
+UPDATE refresh_tokens SET spent_at = now()
+ WHERE id = $1
+   AND spent_at IS NULL
+RETURNING id;
+```
+
+Two concurrent `UPDATE`s of one row serialise on its row lock. The second waits for the
+first to commit, and Postgres then re-checks its `WHERE` against the row as it now is —
+`spent_at` is no longer null, so it matches nothing and returns zero rows. The new token is
+only inserted, in the same transaction, when a row came back.
+
+Measured against the real database, not reasoned about: **20 concurrent rotations of one
+token, one winner**, and the chain holds exactly two rows. With `spent_at IS NULL` removed
+from that `WHERE`, the same run gives **20 winners and 21 live tokens**.
+
+And the loser? By the rule above it presented a spent token, so it is a replay, and the
+chain is revoked. **Two tabs refreshing at the same instant sign the person out.** A grace
+period — "spent less than two seconds ago, reject without revoking" — would avoid that, and
+was rejected: it is a window in which a replay goes undetected, and it contradicts the one
+rule that makes detection work. The price moves to the client instead: the frontend in
+Phase 5 has to make refreshes single-flight across tabs (`navigator.locks` or a
+`BroadcastChannel`), so that one tab refreshes and the others wait for its result.
+
+The session needs the same care, and the obvious way of checking it is not enough. A
+first version put `AND EXISTS (SELECT 1 FROM sessions … revoked_at IS NULL)` in that
+`UPDATE`. Postgres's re-check after a lock wait covers the row being updated, not rows a
+subquery read — so a revocation committing *during* a rotation went unseen, and the
+rotation minted a fresh token into a session that had just been revoked. Reproduced against
+the real database with a revocation held open mid-transaction: the rotation raced past it,
+and the chain gained a row.
+
+The fix is a locking read first, in the same transaction:
+
+```sql
+SELECT id FROM sessions WHERE id = $1 AND revoked_at IS NULL FOR SHARE;
+```
+
+Under `READ COMMITTED`, a locking read waits for a concurrent `UPDATE` of that row to
+finish and then sees its committed result. So a rotation that overlaps a revocation waits
+for it and loses; a revocation that arrives during a rotation waits for the rotation to
+commit, and then kills the token it just minted. Either way the two are ordered, and
+nothing slips between them. It costs one more statement on every refresh.
+
+### Absolute expiry
+
+A rotated token inherits its session's `expires_at`. It does not get 30 fresh days. Sam is
+asked for a password 30 days after logging in, however active they have been.
+
+Sliding expiry — each rotation extends the deadline — is what consumer apps usually do, and
+it is what Sam would notice first. It was rejected for what it does to a stolen chain on a
+device its owner stopped using: nothing ever presents a spent token, so nothing is detected,
+and every rotation extends the thief's access forever. Absolute expiry bounds that at 30
+days. It also means the deadline lives in one column on `sessions` instead of one per token.
+
+### What the client sees
+
+Every rejected refresh — unknown, spent, expired, revoked — is the same `401`, byte for
+byte, with no `detail` and no `field`. The client does not need to know which: its next
+move is "log in again" in all four cases. A thief learns nothing from it either, including
+whether their copy was the one that got caught.
+
+What the client *must* tell apart is a `401` from a transient failure. Identity being down
+is a `503` or `504`, and the right response to that is to try again later — not to throw
+the person out. A client that treats every refresh failure as "logged out" signs everyone
+out during an outage; one that retries every failure hammers the endpoint forever with a
+token that will never work again.
+
+### Over-engineered, honestly
+
+At this project's scale — one developer, one laptop — nobody is stealing refresh tokens.
+Rotation costs a row per refresh, a transaction instead of a read, and a frontend that has
+to coordinate its tabs. It is here because it is the mechanism: a credential designed so
+that using a stolen copy is also how the theft is discovered.
+
 ## What it costs
 
 **A stolen access token works until it expires, and nothing can stop it.** Fifteen minutes
@@ -259,9 +424,8 @@ enough that refreshing is not constant. Changing the password does not shorten i
 out does not shorten it. This is the price of local verification, paid knowingly.
 
 **Fifteen minutes is not free either.** Every client calls `/v1/auth/refresh` four times an
-hour. That traffic did not exist under session cookies, and it is the reason
-[#8](https://github.com/samueldamatta/X-clone/issues/8)'s rotation has to be cheap and
-correct under concurrency — two tabs refreshing at once is the normal case, not an edge one.
+hour. That traffic did not exist under session cookies, and it is why rotation had to be
+correct under concurrency — see **Two tabs, one token** above.
 
 **Two things to carry now instead of one.** Every client stores, sends and renews two
 credentials with different rules. The frontend in Phase 5 has to get this right, and
@@ -273,11 +437,13 @@ refresh token out of reach of XSS — a genuine advantage this design gives up. 
 means a cookie-shaped API every non-browser client has to work around, plus CSRF protection.
 Deliberately deferred to Phase 5, when there is a real browser to decide for.
 
-**`sessions` rows are never deleted.** Revoked sessions accumulate forever, because
-[#8](https://github.com/samueldamatta/X-clone/issues/8)'s reuse detection needs to tell "this
-token never existed" from "this token was already spent", and a deleted row cannot. The
-index that finds live sessions is partial (`WHERE revoked_at IS NULL`) so the dead ones stay
-out of the way, but the table grows without bound and will eventually want a reaper.
+**Nothing is ever deleted.** Reuse detection needs to tell "this token never existed" from
+"this token was already spent", and a deleted row cannot. `sessions` grows by one row per
+login. `refresh_tokens` grows much faster: four rows an hour per active client, so a device
+left open for a session's whole 30 days writes 4 × 24 × 30 = **2,880** rows, of which one is
+live. The partial index on `sessions` keeps revoked logins out of the way, and the lookup by
+`token_hash` is a unique index, so neither gets slower — but both tables grow without bound
+and will eventually want a reaper for chains whose session expired.
 
 ## Where to read it
 
@@ -287,14 +453,19 @@ out of the way, but the table grows without bound and will eventually want a rea
    a JWT, written out
 3. [`random-refresh-token-factory.ts`](../../backend/services/identity/src/infrastructure/security/random-refresh-token-factory.ts) —
    32 bytes and a digest
-4. [`schema.ts`](../../backend/services/identity/src/infrastructure/persistence/schema.ts) —
-   what a session is, as a table
-5. [`scripts/integration.sh`](../../scripts/integration.sh) — all of the above, asserted
-   against real containers
+4. [`refresh-session.use-case.ts`](../../backend/services/identity/src/application/refresh-session.use-case.ts) —
+   rotation and reuse detection, in the order the checks happen
+5. [`drizzle-session.repository.ts`](../../backend/services/identity/src/infrastructure/persistence/drizzle-session.repository.ts) —
+   the locking read and the conditional `UPDATE` that give every race one order
+6. [`schema.ts`](../../backend/services/identity/src/infrastructure/persistence/schema.ts) —
+   a session and its chain, as tables
+7. [`scripts/integration.sh`](../../scripts/integration.sh) — all of the above, asserted
+   against real containers, including two concurrent refreshes of one token
 
 ## See also
 
 - [[internal-grpc]] — why the Gateway reaches Identity over protobuf rather than REST
 - [[snowflake-ids]] — why `sub` is a string
-- [`03-data-model.md`](../03-data-model.md) — the `sessions` table
-- [`04-api-contracts.md`](../04-api-contracts.md) — the public shape of `/v1/auth/login`
+- [`03-data-model.md`](../03-data-model.md) — the `sessions` and `refresh_tokens` tables
+- [`04-api-contracts.md`](../04-api-contracts.md) — the public shape of `/v1/auth/login` and
+  `/v1/auth/refresh`

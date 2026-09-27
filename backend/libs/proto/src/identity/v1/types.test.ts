@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { identityProtoPath } from '../../paths';
 import type {
   GetProfileRequest,
+  IssuedTokens,
   LoginRequest,
-  LoginResponse,
   Profile,
+  RefreshRequest,
   RegisterRequest,
   RegisterResponse,
   UpdateProfileRequest,
@@ -40,13 +41,17 @@ const LOGIN_REQUEST = {
   userAgent: true,
 } satisfies Record<keyof LoginRequest, true>;
 
-const LOGIN_RESPONSE = {
+const REFRESH_REQUEST = {
+  refreshToken: true,
+} satisfies Record<keyof RefreshRequest, true>;
+
+const ISSUED_TOKENS = {
   accessToken: true,
   refreshToken: true,
   accessTokenExpiresAt: true,
   refreshTokenExpiresAt: true,
   userId: true,
-} satisfies Record<keyof LoginResponse, true>;
+} satisfies Record<keyof IssuedTokens, true>;
 
 const GET_PROFILE_REQUEST = {
   handle: true,
@@ -104,6 +109,7 @@ describe('identity.proto and its hand-written types', () => {
     expect(Object.keys(service ?? {}).sort()).toEqual([
       'GetProfile',
       'Login',
+      'Refresh',
       'Register',
       'UpdateProfile',
     ]);
@@ -113,7 +119,8 @@ describe('identity.proto and its hand-written types', () => {
     ['RegisterRequest', REGISTER_REQUEST],
     ['RegisterResponse', REGISTER_RESPONSE],
     ['LoginRequest', LOGIN_REQUEST],
-    ['LoginResponse', LOGIN_RESPONSE],
+    ['RefreshRequest', REFRESH_REQUEST],
+    ['IssuedTokens', ISSUED_TOKENS],
     ['GetProfileRequest', GET_PROFILE_REQUEST],
     ['UpdateProfileRequest', UPDATE_PROFILE_REQUEST],
     ['Profile', PROFILE],
@@ -130,7 +137,7 @@ describe('identity.proto and its hand-written types', () => {
    */
   it.each([
     ['RegisterResponse', 'id'],
-    ['LoginResponse', 'userId'],
+    ['IssuedTokens', 'userId'],
     ['Profile', 'id'],
     ['UpdateProfileRequest', 'userId'],
   ])('declares %s.%s as a proto string, never an integer', (messageName, fieldName) => {

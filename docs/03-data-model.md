@@ -129,20 +129,30 @@ CREATE TABLE credentials (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE sessions (
-  id                 BIGINT PRIMARY KEY,
-  user_id            BIGINT NOT NULL REFERENCES users(id),
-  refresh_token_hash TEXT NOT NULL,             -- never the token itself
-  expires_at         TIMESTAMPTZ NOT NULL,
-  revoked_at         TIMESTAMPTZ,
-  user_agent         TEXT,
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE sessions (                         -- one login, and its refresh-token chain
+  id          BIGINT PRIMARY KEY,
+  user_id     BIGINT NOT NULL REFERENCES users(id),
+  expires_at  TIMESTAMPTZ NOT NULL,             -- absolute: rotation never extends it
+  revoked_at  TIMESTAMPTZ,                      -- revokes every token in the chain
+  user_agent  TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX ON sessions (user_id) WHERE revoked_at IS NULL;
+
+CREATE TABLE refresh_tokens (
+  id          BIGINT PRIMARY KEY,
+  session_id  BIGINT NOT NULL REFERENCES sessions(id),
+  token_hash  TEXT NOT NULL UNIQUE,             -- never the token itself
+  spent_at    TIMESTAMPTZ,                      -- set once, when exchanged
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 ```
 
 Refresh tokens are stored hashed for the same reason passwords are: a database leak must
-not hand over live sessions.
+not hand over live sessions. Spent tokens are kept, never deleted — a replayed token has to
+be found to be recognised as theft. Why the chain is a separate table rather than a column
+on `sessions` is in
+[`concepts/access-and-refresh-tokens.md`](concepts/access-and-refresh-tokens.md#where-the-chain-lives).
 
 ### Graph — `graph.*`
 

@@ -11,7 +11,7 @@ const TOKEN_BYTES = 32;
 /**
  * Opaque, unlike the access token: this string means nothing, carries
  * nothing, and can be understood by nobody holding it. It is a lookup key
- * for a row in `identity.sessions`, which is precisely what makes revoking
+ * for a row in `identity.refresh_tokens`, which is precisely what makes revoking
  * it possible — there is nothing to revoke about a self-describing JWT
  * except waiting for it to expire.
  *
@@ -20,7 +20,7 @@ const TOKEN_BYTES = 32;
  * of entropy and the slowness is what makes guessing it uneconomic. This
  * token holds 256 bits from a CSPRNG. There is no dictionary to run, no
  * guessing to price, and nothing for the slowness to buy — it would be
- * pure latency on the refresh path, which #8 puts on every client every
+ * pure latency on the refresh path, which every client hits every
  * fifteen minutes. Fast hashing is right here for exactly the reason it is
  * wrong for passwords.
  */
@@ -32,16 +32,10 @@ export class RandomRefreshTokenFactory implements RefreshTokenFactory {
     // messy.
     const token = randomBytes(TOKEN_BYTES).toString('base64url');
 
-    return { token, hash: hashRefreshToken(token) };
+    return { token, hash: this.hash(token) };
   }
-}
 
-/**
- * Exported because #8 needs the same function to look a token back up —
- * it hashes what the client presents and compares against the stored
- * column. Two copies of this would drift, and the failure mode is a
- * refresh endpoint that never matches anything.
- */
-export function hashRefreshToken(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
+  hash(token: string): string {
+    return createHash('sha256').update(token, 'utf8').digest('hex');
+  }
 }

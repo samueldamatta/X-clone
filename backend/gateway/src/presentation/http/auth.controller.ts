@@ -1,6 +1,8 @@
 import { Body, Controller, Headers, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
 import { IdentityGrpcClient } from '../../infrastructure/identity/identity.grpc-client';
+import type { IssuedTokens as IssuedTokensMessage } from '@x-clone/proto';
 import { parseLoginBody } from './login.request';
+import { parseRefreshBody } from './refresh.request';
 import { parseRegisterBody } from './register.request';
 
 /**
@@ -8,7 +10,7 @@ import { parseRegisterBody } from './register.request';
  * concrete class. The DI token is still the class itself (below): an
  * interface has no runtime representation for Nest's reflection to find.
  */
-type IdentityClient = Pick<IdentityGrpcClient, 'register' | 'login'>;
+type IdentityClient = Pick<IdentityGrpcClient, 'register' | 'login' | 'refresh'>;
 
 export interface IssuedTokens {
   /**
@@ -91,14 +93,24 @@ export class AuthController {
       userAgent: userAgent ?? '',
     });
 
-    // Field by field, like register: a field added to the .proto must not
-    // become public because nobody remembered to strip it.
-    return {
-      accessToken: tokens.accessToken,
-      accessTokenExpiresAt: tokens.accessTokenExpiresAt,
-      refreshToken: tokens.refreshToken,
-      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
-      userId: tokens.userId,
-    };
+    return toIssuedTokens(tokens);
   }
+
+  /** A 401 here means "log in again" and a 5xx means "try again" — the one distinction a client must make. */
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() body: unknown): Promise<IssuedTokens> {
+    return toIssuedTokens(await this.identity.refresh(parseRefreshBody(body)));
+  }
+}
+
+// Field by field, so a field added to the .proto never becomes public by accident.
+function toIssuedTokens(tokens: IssuedTokensMessage): IssuedTokens {
+  return {
+    accessToken: tokens.accessToken,
+    accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+    refreshToken: tokens.refreshToken,
+    refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
+    userId: tokens.userId,
+  };
 }

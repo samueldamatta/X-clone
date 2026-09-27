@@ -1,9 +1,10 @@
 export type {
   GetProfileRequest,
   IdentityServiceClient,
+  IssuedTokens,
   LoginRequest,
-  LoginResponse,
   Profile,
+  RefreshRequest,
   RegisterRequest,
   RegisterResponse,
   UpdateProfileRequest,

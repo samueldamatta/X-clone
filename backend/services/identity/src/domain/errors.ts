@@ -34,6 +34,14 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+/** Unknown, spent, expired or revoked: one indistinguishable error, since the client's answer to all four is "log in again". */
+export class InvalidRefreshTokenError extends Error {
+  constructor() {
+    super('invalid refresh token');
+    this.name = 'InvalidRefreshTokenError';
+  }
+}
+
 /** A handle that is syntactically valid but already belongs to another account. */
 export class HandleTakenError extends Error {
   readonly field = 'handle';

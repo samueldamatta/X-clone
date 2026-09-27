@@ -7,27 +7,18 @@ import type { RefreshTokenFactory } from '../domain/ports/refresh-token-factory'
 import type { SessionRepository } from '../domain/ports/session-repository';
 import type { UserRepository } from '../domain/ports/user-repository';
 import type { Session } from '../domain/session';
+import {
+  issueTokens,
+  mintRefreshToken,
+  type IssuedTokens,
+  type TokenLifetimes,
+} from './issued-tokens';
 
 export interface LoginInput {
   handle: string;
   password: string;
   /** Absent when the client sent no User-Agent header. */
   userAgent?: string;
-}
-
-export interface LoginResult {
-  userId: string;
-  sessionId: string;
-  accessToken: string;
-  accessTokenExpiresAt: Date;
-  /** The only time this value exists anywhere. Nothing stores it. */
-  refreshToken: string;
-  refreshTokenExpiresAt: Date;
-}
-
-export interface TokenLifetimes {
-  accessTokenMs: number;
-  refreshTokenMs: number;
 }
 
 /**
@@ -52,7 +43,7 @@ export class LoginUseCase {
     private readonly lifetimes: TokenLifetimes,
   ) {}
 
-  async execute(input: LoginInput): Promise<LoginResult> {
+  async execute(input: LoginInput): Promise<IssuedTokens> {
     const credentials = await this.users.findCredentialsByHandle(input.handle);
 
     if (credentials === undefined) {
@@ -81,37 +72,20 @@ export class LoginUseCase {
     }
 
     const now = this.clock.now();
-    const refreshToken = this.refreshTokens.create();
 
-    // Built before the insert, so a repository that rejects the row cannot
-    // leave a token in the caller's hands that no session backs.
+    // Built before the insert, so a failed write never leaves the caller holding an unbacked token.
     const session: Session = {
       id: this.ids.next(),
       userId: credentials.userId,
-      refreshTokenHash: refreshToken.hash,
       expiresAt: new Date(now.getTime() + this.lifetimes.refreshTokenMs),
       revokedAt: null,
       userAgent: input.userAgent ?? null,
       createdAt: now,
     };
+    const first = mintRefreshToken(this.refreshTokens, this.ids, session.id, now);
 
-    await this.sessions.create(session);
+    await this.sessions.create(session, first.row);
 
-    const accessTokenExpiresAt = new Date(now.getTime() + this.lifetimes.accessTokenMs);
-    const accessToken = this.accessTokens.issue({
-      userId: session.userId,
-      sessionId: session.id,
-      issuedAt: now,
-      expiresAt: accessTokenExpiresAt,
-    });
-
-    return {
-      userId: session.userId,
-      sessionId: session.id,
-      accessToken,
-      accessTokenExpiresAt,
-      refreshToken: refreshToken.token,
-      refreshTokenExpiresAt: session.expiresAt,
-    };
+    return issueTokens(this.accessTokens, session, first.token, now, this.lifetimes);
   }
 }

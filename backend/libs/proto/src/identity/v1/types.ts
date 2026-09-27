@@ -24,12 +24,16 @@ export interface LoginRequest {
   userAgent: string;
 }
 
-export interface LoginResponse {
+export interface IssuedTokens {
   accessToken: string;
   refreshToken: string;
   accessTokenExpiresAt: string;
   refreshTokenExpiresAt: string;
   userId: string;
+}
+
+export interface RefreshRequest {
+  refreshToken: string;
 }
 
 export interface GetProfileRequest {
@@ -63,7 +67,8 @@ export interface Profile {
 
 export interface IdentityServiceClient {
   register(request: RegisterRequest): Promise<RegisterResponse>;
-  login(request: LoginRequest): Promise<LoginResponse>;
+  login(request: LoginRequest): Promise<IssuedTokens>;
+  refresh(request: RefreshRequest): Promise<IssuedTokens>;
   getProfile(request: GetProfileRequest): Promise<Profile>;
   updateProfile(request: UpdateProfileRequest): Promise<Profile>;
 }

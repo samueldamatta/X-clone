@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { hashRefreshToken, RandomRefreshTokenFactory } from './random-refresh-token-factory';
+import { RandomRefreshTokenFactory } from './random-refresh-token-factory';
 
 describe('RandomRefreshTokenFactory', () => {
   it('mints 256 bits of entropy, encoded base64url', () => {
@@ -44,18 +44,17 @@ describe('RandomRefreshTokenFactory', () => {
     expect(hash).not.toContain(token);
   });
 
-  /**
-   * #8 hashes the token a client presents and compares it against the
-   * stored column. That only works if this function is the same one that
-   * wrote the column.
-   */
+  // Refresh looks a presented token up by this digest; it must match what create() stored.
   it('reproduces the stored hash from the token alone', () => {
-    const { token, hash } = new RandomRefreshTokenFactory().create();
+    const factory = new RandomRefreshTokenFactory();
+    const { token, hash } = factory.create();
 
-    expect(hashRefreshToken(token)).toBe(hash);
+    expect(factory.hash(token)).toBe(hash);
   });
 
   it('hashes different tokens differently', () => {
-    expect(hashRefreshToken('one')).not.toBe(hashRefreshToken('two'));
+    const factory = new RandomRefreshTokenFactory();
+
+    expect(factory.hash('one')).not.toBe(factory.hash('two'));
   });
 });

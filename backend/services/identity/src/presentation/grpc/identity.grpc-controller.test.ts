@@ -2,13 +2,16 @@ import { status as GrpcStatus } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { readFieldViolation } from '@x-clone/proto';
 import { describe, expect, it } from 'vitest';
-import type { LoginInput, LoginResult } from '../../application/login.use-case';
+import type { IssuedTokens } from '../../application/issued-tokens';
+import type { LoginInput } from '../../application/login.use-case';
+import type { RefreshSessionInput } from '../../application/refresh-session.use-case';
 import type { UpdateProfileInput } from '../../application/update-profile.use-case';
 import {
   DomainValidationError,
   EmptyProfileUpdateError,
   HandleTakenError,
   InvalidCredentialsError,
+  InvalidRefreshTokenError,
   ProfileNotFoundError,
 } from '../../domain/errors';
 import type { Profile } from '../../domain/profile';
@@ -20,19 +23,49 @@ const neverCalled = {
 };
 
 function controllerWith(execute: (input: { handle: string; password: string }) => Promise<User>) {
-  return new IdentityGrpcController({ execute }, neverCalled, neverCalled, neverCalled);
+  return new IdentityGrpcController(
+    { execute },
+    neverCalled,
+    neverCalled,
+    neverCalled,
+    neverCalled,
+  );
 }
 
-function loginControllerWith(execute: (input: LoginInput) => Promise<LoginResult>) {
-  return new IdentityGrpcController(neverCalled, { execute }, neverCalled, neverCalled);
+function loginControllerWith(execute: (input: LoginInput) => Promise<IssuedTokens>) {
+  return new IdentityGrpcController(
+    neverCalled,
+    { execute },
+    neverCalled,
+    neverCalled,
+    neverCalled,
+  );
 }
 
 function getProfileControllerWith(execute: (handle: string) => Promise<Profile>) {
-  return new IdentityGrpcController(neverCalled, neverCalled, { execute }, neverCalled);
+  return new IdentityGrpcController(
+    neverCalled,
+    neverCalled,
+    { execute },
+    neverCalled,
+    neverCalled,
+  );
 }
 
 function updateProfileControllerWith(execute: (input: UpdateProfileInput) => Promise<Profile>) {
-  return new IdentityGrpcController(neverCalled, neverCalled, neverCalled, { execute });
+  return new IdentityGrpcController(
+    neverCalled,
+    neverCalled,
+    neverCalled,
+    { execute },
+    neverCalled,
+  );
+}
+
+function refreshControllerWith(execute: (input: RefreshSessionInput) => Promise<IssuedTokens>) {
+  return new IdentityGrpcController(neverCalled, neverCalled, neverCalled, neverCalled, {
+    execute,
+  });
 }
 
 /** Pulls the RpcException's payload out, which is where the code lives. */
@@ -128,9 +161,8 @@ describe('IdentityGrpcController.register', () => {
   });
 });
 
-const LOGIN_RESULT: LoginResult = {
+const LOGIN_RESULT: IssuedTokens = {
   userId: '900',
-  sessionId: '1',
   accessToken: 'header.payload.signature',
   accessTokenExpiresAt: new Date('2026-08-20T12:15:00.000Z'),
   refreshToken: 'opaque-token',
@@ -154,19 +186,6 @@ describe('IdentityGrpcController.login', () => {
       refreshTokenExpiresAt: '2026-09-19T12:00:00.000Z',
       userId: '900',
     });
-  });
-
-  /**
-   * The session id stays on this side of the wire. It is in the JWT's
-   * `sid` claim, where the Gateway will read it; repeating it in the
-   * response body would publish an internal handle nobody outside needs.
-   */
-  it('does not put the session id in the response', async () => {
-    const controller = loginControllerWith(() => Promise.resolve(LOGIN_RESULT));
-
-    const response = await controller.login({ handle: 'sam', password: 'p', userAgent: '' });
-
-    expect(Object.keys(response)).not.toContain('sessionId');
   });
 
   it('forwards the user agent to the use case', async () => {
@@ -249,6 +268,44 @@ describe('IdentityGrpcController.login', () => {
       expect(body.code).toBe(GrpcStatus.INTERNAL);
       expect(body.message).toBe('internal error');
       expect(body.message).not.toContain('hunter2');
+    }
+  });
+});
+
+describe('IdentityGrpcController.refresh', () => {
+  it('passes the token through and maps the new pair like login does', async () => {
+    const seen: RefreshSessionInput[] = [];
+    const controller = refreshControllerWith((input) => {
+      seen.push(input);
+      return Promise.resolve(LOGIN_RESULT);
+    });
+
+    const response = await controller.refresh({ refreshToken: 'opaque-token' });
+
+    expect(seen).toEqual([{ refreshToken: 'opaque-token' }]);
+    expect(response).toEqual({
+      accessToken: 'header.payload.signature',
+      refreshToken: 'opaque-token',
+      accessTokenExpiresAt: '2026-08-20T12:15:00.000Z',
+      refreshTokenExpiresAt: '2026-09-19T12:00:00.000Z',
+      userId: '900',
+    });
+  });
+
+  // Unknown, spent, expired, revoked: one code, one message, nothing to tell a thief which it was.
+  it('maps InvalidRefreshTokenError to a bare UNAUTHENTICATED', async () => {
+    const controller = refreshControllerWith(() => {
+      throw new InvalidRefreshTokenError();
+    });
+
+    try {
+      await controller.refresh({ refreshToken: 'opaque-token' });
+      expect.unreachable();
+    } catch (error) {
+      const body = rpcBody(error);
+      expect(body.code).toBe(GrpcStatus.UNAUTHENTICATED);
+      expect(body.message).toBe('invalid refresh token');
+      expect(body.metadata).toBeUndefined();
     }
   });
 });

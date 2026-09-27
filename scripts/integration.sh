@@ -49,6 +49,16 @@ login() {
     -d "$1" 2>/dev/null
 }
 
+refresh() {
+  curl -sS -o "${2:-$body}" -w '%{http_code} %{content_type}' \
+    -X POST "$GATEWAY/v1/auth/refresh" \
+    -H 'Content-Type: application/json' \
+    -d "$1" 2>/dev/null
+}
+
+# The digest identity stores, computed the same way, so rows can be found by the token a client holds.
+token_hash() { printf '%s' "$1" | openssl dgst -sha256 | awk '{print $NF}'; }
+
 psql_() { $COMPOSE exec -T postgres psql -qtAX -U postgres -d xclone -c "$1" 2>&1; }
 
 # The compose value, and public on purpose — it is committed in
@@ -353,8 +363,8 @@ else
   bad "expected 2 live sessions, found ${live:-<none>}"
 fi
 
-distinct=$(psql_ "SELECT count(DISTINCT refresh_token_hash) FROM identity.sessions
-                  WHERE user_id = $user_id;")
+distinct=$(psql_ "SELECT count(DISTINCT t.token_hash) FROM identity.refresh_tokens t
+                  JOIN identity.sessions s ON s.id = t.session_id WHERE s.user_id = $user_id;")
 if [ "$distinct" = "2" ]; then
   ok "each session stores its own distinct token hash"
 else
@@ -364,22 +374,24 @@ fi
 # The whole reason the column holds a hash. Both halves matter: the token
 # must be absent, and the row must exist — an empty table would satisfy the
 # first on its own.
-leaked=$(psql_ "SELECT count(*) FROM identity.sessions
-                WHERE refresh_token_hash LIKE '%$refresh_token%';")
-hashed=$(psql_ "SELECT count(*) FROM identity.sessions
-                WHERE user_id = $user_id AND refresh_token_hash ~ '^[0-9a-f]{64}\$';")
+leaked=$(psql_ "SELECT count(*) FROM identity.refresh_tokens
+                WHERE token_hash LIKE '%$refresh_token%';")
+hashed=$(psql_ "SELECT count(*) FROM identity.refresh_tokens t
+                JOIN identity.sessions s ON s.id = t.session_id
+                WHERE s.user_id = $user_id AND t.token_hash ~ '^[0-9a-f]{64}\$';")
 if [ "$leaked" = "0" ] && [ "$hashed" = "2" ]; then
   ok "only hashes are stored — the refresh token itself is nowhere in the table"
 else
   bad "refresh token storage is wrong" "leaked=${leaked:-?} hashed=${hashed:-?}"
 fi
 
-# Nothing anywhere in the row, not just in the hash column: a token parked
-# in user_agent would be just as leaked.
-anywhere=$(psql_ "SELECT count(*) FROM identity.sessions
-                  WHERE sessions::text LIKE '%$refresh_token%';")
+# Nothing anywhere in either table: a token parked in user_agent is just as leaked.
+anywhere=$(psql_ "SELECT (SELECT count(*) FROM identity.sessions
+                          WHERE sessions::text LIKE '%$refresh_token%')
+                       + (SELECT count(*) FROM identity.refresh_tokens
+                          WHERE refresh_tokens::text LIKE '%$refresh_token%');")
 if [ "$anywhere" = "0" ]; then
-  ok "the refresh token appears in no column of the sessions table"
+  ok "the refresh token appears in no column of sessions or refresh_tokens"
 else
   bad "the refresh token is stored somewhere in the row"
 fi
@@ -691,6 +703,134 @@ else
   bad "expected 1 credential row and 0 leaks" "rows=${rows:-?} leaked=${leaked:-?}"
 fi
 
+# --- Refresh rotation and reuse detection ----------------------------------
+head_ "refresh: rotation and reuse detection"
+
+# Two fresh logins: one chain to steal from, and one that must survive it.
+login "{\"handle\":\"$handle\",\"password\":\"$password\"}" >/dev/null
+chain_first=$(json_string "$body" refreshToken)
+chain_expiry=$(json_string "$body" refreshTokenExpiresAt)
+chain_access=$(json_string "$body" accessToken)
+login "{\"handle\":\"$handle\",\"password\":\"$password\"}" >/dev/null
+other_refresh=$(json_string "$body" refreshToken)
+
+# iat is in whole seconds and a JWT is deterministic: within one second the new access token is byte-identical.
+sleep 1
+
+result=$(refresh "{\"refreshToken\":\"$chain_first\"}")
+chain_second=$(json_string "$body" refreshToken)
+rotated_access=$(json_string "$body" accessToken)
+
+if [ "${result%% *}" = "200" ] && [ -n "$chain_second" ] && [ "$chain_second" != "$chain_first" ] &&
+  [ -n "$rotated_access" ] && [ "$rotated_access" != "$chain_access" ]; then
+  ok "a valid refresh token returns a new access token and a new refresh token"
+else
+  bad "expected 200 with a new pair, got ${result%% *}" "$(cat "$body")"
+fi
+
+if [ "$(json_string "$body" refreshTokenExpiresAt)" = "$chain_expiry" ]; then
+  ok "rotation keeps the session's absolute expiry rather than extending it"
+else
+  bad "the refreshed pair moved the expiry" "login=$chain_expiry refresh=$(json_string "$body" refreshTokenExpiresAt)"
+fi
+
+# The new access token is only worth something if the Gateway accepts it.
+result=$(patch_me '{"bio":"refreshed"}' "$rotated_access")
+if [ "$result" = "200" ]; then
+  ok "the refreshed access token is accepted on an authenticated route"
+else
+  bad "the refreshed access token was refused" "status=$result $(cat "$body")"
+fi
+
+chain_session=$(psql_ "SELECT session_id FROM identity.refresh_tokens
+                       WHERE token_hash = '$(token_hash "$chain_first")';")
+
+# The holder has moved on to chain_second, so whoever presents chain_first holds a copy.
+result=$(refresh "{\"refreshToken\":\"$chain_first\"}")
+reuse_status=${result%% *}
+reuse_type=${result#* }
+reuse_body=$(cat "$body")
+
+if [ "$reuse_status" = "401" ]; then
+  ok "the exchanged refresh token no longer works (401)"
+else
+  bad "expected 401 for a spent token, got ${reuse_status:-<none>}" "$reuse_body"
+fi
+
+case "$reuse_type" in
+*application/problem+json*) ok "the rejection uses the standard error shape" ;;
+*) bad "wrong media type on the refresh 401" "got: ${reuse_type:-<none>}" ;;
+esac
+
+revoked=$(psql_ "SELECT revoked_at IS NOT NULL FROM identity.sessions WHERE id = $chain_session;")
+if [ "$revoked" = "t" ]; then
+  ok "replaying a spent token revoked the whole session chain"
+else
+  bad "the chain was not revoked" "revoked=${revoked:-<none>} session=${chain_session:-<none>}"
+fi
+
+# The token the legitimate holder is carrying right now must die with the chain.
+result=$(refresh "{\"refreshToken\":\"$chain_second\"}")
+revoked_body=$(cat "$body")
+if [ "${result%% *}" = "401" ]; then
+  ok "after the revocation, the newest refresh token in that chain fails too"
+else
+  bad "the newest token survived the revocation" "status=${result%% *} $revoked_body"
+fi
+
+result=$(refresh "{\"refreshToken\":\"$other_refresh\"}")
+other_live=$(json_string "$body" refreshToken)
+if [ "${result%% *}" = "200" ]; then
+  ok "the account's other session still refreshes — one chain was revoked, not the account"
+else
+  bad "revoking one chain broke another session" "status=${result%% *} $(cat "$body")"
+fi
+
+result=$(refresh '{"refreshToken":"never-issued-by-anyone"}')
+unknown_body=$(cat "$body")
+
+# Spent, revoked and never-issued look the same, so a thief learns nothing from which.
+if [ "${result%% *}" = "401" ] && [ "$reuse_body" = "$revoked_body" ] &&
+  [ "$revoked_body" = "$unknown_body" ]; then
+  ok "spent, revoked and unknown tokens get byte-for-byte the same 401"
+else
+  bad "the refresh rejections differ" \
+    "spent: $reuse_body  revoked: $revoked_body  unknown: $unknown_body"
+fi
+
+result=$(refresh '{}')
+if [ "${result%% *}" = "400" ] && grep -q '"field":"refreshToken"' "$body"; then
+  ok "a body with no refresh token is a 400 naming the field"
+else
+  bad "expected 400 naming refreshToken, got ${result%% *}" "$(cat "$body")"
+fi
+
+# Two tabs at once: one wins, and the loser counts as a replay, so the chain goes with it.
+login "{\"handle\":\"$handle\",\"password\":\"$password\"}" >/dev/null
+raced=$(json_string "$body" refreshToken)
+race_a=$(mktemp)
+race_b=$(mktemp)
+refresh "{\"refreshToken\":\"$raced\"}" "$race_a" >"$race_a.status" &
+refresh "{\"refreshToken\":\"$raced\"}" "$race_b" >"$race_b.status" &
+wait
+statuses=$(printf '%s\n%s\n' "$(cut -d' ' -f1 "$race_a.status")" "$(cut -d' ' -f1 "$race_b.status")" | sort | tr '\n' ' ')
+winner_token=$(json_string "$race_a" refreshToken)
+[ -z "$winner_token" ] && winner_token=$(json_string "$race_b" refreshToken)
+rm -f "$race_a" "$race_b" "$race_a.status" "$race_b.status"
+
+if [ "$statuses" = "200 401 " ]; then
+  ok "two concurrent refreshes of one token: exactly one wins"
+else
+  bad "expected one 200 and one 401" "got: $statuses"
+fi
+
+result=$(refresh "{\"refreshToken\":\"$winner_token\"}")
+if [ "${result%% *}" = "401" ]; then
+  ok "the race's loser counted as reuse: the winner's new token is dead too"
+else
+  bad "the chain forked — the winner's token still works" "status=${result%% *}"
+fi
+
 # --- Verification is local --------------------------------------------------
 head_ "profile: the Gateway verifies without calling identity"
 
@@ -719,6 +859,14 @@ if [ "$result" = "503" ] || [ "$result" = "504" ]; then
   ok "a good token gets as far as the unreachable identity (${result})"
 else
   bad "expected 503/504 with identity down, got ${result:-<none>}" "$(cat "$body")"
+fi
+
+# A live token with identity down: the 5xx ("retry") is the outage's alone, never the 401 ("log in again").
+result=$(refresh "{\"refreshToken\":\"$other_live\"}")
+if [ "${result%% *}" = "503" ] || [ "${result%% *}" = "504" ]; then
+  ok "a refresh with identity down is ${result%% *}, not the 401 of a revoked session"
+else
+  bad "expected 503/504 for a refresh with identity down, got ${result%% *}"
 fi
 
 # A public profile read is identity's too, so it fails the same way. Stated

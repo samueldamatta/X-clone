@@ -49,20 +49,7 @@ export const credentials = identitySchema.table('credentials', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/**
- * One row per login. The refresh token itself is never here — only its
- * hash, for the same reason `credentials` holds no password: a dump of this
- * table must not hand over live sessions.
- *
- * `revoked_at` rather than a DELETE. A revoked session is evidence: #8's
- * reuse detection has to tell "this refresh token never existed" apart from
- * "this refresh token was already spent", and a deleted row cannot make
- * that distinction.
- *
- * No index on `refresh_token_hash` yet. Looking a session up by its token
- * is what refresh does, and refresh is #8; an index nothing queries is
- * write cost with no read to pay for it.
- */
+/** One row per login; revoked rather than deleted, because its spent tokens must still resolve to it. */
 export const sessions = identitySchema.table(
   'sessions',
   {
@@ -70,7 +57,7 @@ export const sessions = identitySchema.table(
     userId: snowflake('user_id')
       .notNull()
       .references(() => users.id),
-    refreshTokenHash: text('refresh_token_hash').notNull(),
+    // Absolute: rotation never moves it.
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     /**
@@ -95,3 +82,14 @@ export const sessions = identitySchema.table(
       .where(sql`${table.revokedAt} is null`),
   ],
 );
+
+// No index on session_id: revocation writes `sessions`, and nothing queries this table by it.
+export const refreshTokens = identitySchema.table('refresh_tokens', {
+  id: snowflake('id').primaryKey(),
+  sessionId: snowflake('session_id')
+    .notNull()
+    .references(() => sessions.id),
+  tokenHash: text('token_hash').notNull().unique(),
+  spentAt: timestamp('spent_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
