@@ -14,4 +14,6 @@ export interface RefreshToken {
  */
 export interface RefreshTokenFactory {
   create(): RefreshToken;
+  /** The digest `create` would have stored for this token — how a presented token is looked up. */
+  hash(token: string): string;
 }

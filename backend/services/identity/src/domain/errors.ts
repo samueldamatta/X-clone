@@ -34,6 +34,17 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+/**
+ * Every refresh rejection — unknown, spent, expired, revoked — is this one
+ * shape. The client's next move is "log in again" in every case.
+ */
+export class InvalidRefreshTokenError extends Error {
+  constructor() {
+    super('invalid refresh token');
+    this.name = 'InvalidRefreshTokenError';
+  }
+}
+
 /** A handle that is syntactically valid but already belongs to another account. */
 export class HandleTakenError extends Error {
   readonly field = 'handle';

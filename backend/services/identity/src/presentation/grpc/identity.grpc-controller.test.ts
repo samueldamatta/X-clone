@@ -2,7 +2,8 @@ import { status as GrpcStatus } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { readFieldViolation } from '@x-clone/proto';
 import { describe, expect, it } from 'vitest';
-import type { LoginInput, LoginResult } from '../../application/login.use-case';
+import type { IssuedTokens } from '../../application/issued-tokens';
+import type { LoginInput } from '../../application/login.use-case';
 import type { UpdateProfileInput } from '../../application/update-profile.use-case';
 import {
   DomainValidationError,
@@ -23,7 +24,7 @@ function controllerWith(execute: (input: { handle: string; password: string }) =
   return new IdentityGrpcController({ execute }, neverCalled, neverCalled, neverCalled);
 }
 
-function loginControllerWith(execute: (input: LoginInput) => Promise<LoginResult>) {
+function loginControllerWith(execute: (input: LoginInput) => Promise<IssuedTokens>) {
   return new IdentityGrpcController(neverCalled, { execute }, neverCalled, neverCalled);
 }
 
@@ -128,7 +129,7 @@ describe('IdentityGrpcController.register', () => {
   });
 });
 
-const LOGIN_RESULT: LoginResult = {
+const LOGIN_RESULT: IssuedTokens = {
   userId: '900',
   sessionId: '1',
   accessToken: 'header.payload.signature',

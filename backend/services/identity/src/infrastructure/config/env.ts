@@ -1,5 +1,5 @@
 import { nodeIdFromEnv } from '@x-clone/snowflake';
-import type { TokenLifetimes } from '../../application/login.use-case';
+import type { TokenLifetimes } from '../../application/issued-tokens';
 
 /**
  * Fifteen minutes, and the number docs/04-api-contracts.md publishes. It is

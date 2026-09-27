@@ -32,16 +32,10 @@ export class RandomRefreshTokenFactory implements RefreshTokenFactory {
     // messy.
     const token = randomBytes(TOKEN_BYTES).toString('base64url');
 
-    return { token, hash: hashRefreshToken(token) };
+    return { token, hash: this.hash(token) };
   }
-}
 
-/**
- * Exported because #8 needs the same function to look a token back up —
- * it hashes what the client presents and compares against the stored
- * column. Two copies of this would drift, and the failure mode is a
- * refresh endpoint that never matches anything.
- */
-export function hashRefreshToken(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
+  hash(token: string): string {
+    return createHash('sha256').update(token, 'utf8').digest('hex');
+  }
 }

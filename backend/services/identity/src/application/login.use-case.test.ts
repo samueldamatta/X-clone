@@ -1,123 +1,19 @@
-import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { InvalidCredentialsError } from '../domain/errors';
-import type { AccessTokenClaims, AccessTokenIssuer } from '../domain/ports/access-token-issuer';
-import type { Clock } from '../domain/ports/clock';
-import type { IdGenerator } from '../domain/ports/id-generator';
-import type { PasswordHasher } from '../domain/ports/password-hasher';
-import type { RefreshToken, RefreshTokenFactory } from '../domain/ports/refresh-token-factory';
-import type { SessionRepository } from '../domain/ports/session-repository';
-import type { StoredCredentials, UserRepository } from '../domain/ports/user-repository';
-import type { Session } from '../domain/session';
 import { LoginUseCase } from './login.use-case';
+import {
+  FakeAccessTokenIssuer,
+  FakeIdGenerator,
+  FakePasswordHasher,
+  FakeRefreshTokenFactory,
+  FixedClock,
+  InMemorySessionRepository,
+  InMemoryUserRepository,
+} from './testing/fakes';
 
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-09-11T12:00:00.000Z');
-
-class InMemoryUserRepository implements UserRepository {
-  private readonly credentials = new Map<string, StoredCredentials>();
-  /** Every handle this repository was asked about, in order. */
-  readonly lookups: string[] = [];
-
-  seed(handle: string, credentials: StoredCredentials): void {
-    this.credentials.set(handle.toLowerCase(), credentials);
-  }
-
-  existsByHandle(handle: string): Promise<boolean> {
-    return Promise.resolve(this.credentials.has(handle.toLowerCase()));
-  }
-
-  create(): Promise<void> {
-    return Promise.reject(new Error('not used by LoginUseCase'));
-  }
-
-  findCredentialsByHandle(handle: string): Promise<StoredCredentials | undefined> {
-    this.lookups.push(handle);
-    // Case-insensitive here because CITEXT makes the real query so — a fake
-    // that matched case-sensitively would let a bug through that production
-    // does not have.
-    return Promise.resolve(this.credentials.get(handle.toLowerCase()));
-  }
-}
-
-class InMemorySessionRepository implements SessionRepository {
-  readonly created: Session[] = [];
-
-  create(session: Session): Promise<void> {
-    this.created.push(session);
-    return Promise.resolve();
-  }
-}
-
-/**
- * Records every call, because what this use case must *not* skip is as
- * much of its behaviour as what it returns.
- */
-class FakePasswordHasher implements PasswordHasher {
-  readonly hashed: string[] = [];
-  readonly verified: { hash: string; password: string }[] = [];
-
-  hash(password: string): Promise<string> {
-    this.hashed.push(password);
-    return Promise.resolve(`hashed:${password}`);
-  }
-
-  verify(hash: string, password: string): Promise<boolean> {
-    this.verified.push({ hash, password });
-    return Promise.resolve(hash === `hashed:${password}`);
-  }
-}
-
-class FakeAccessTokenIssuer implements AccessTokenIssuer {
-  readonly issued: AccessTokenClaims[] = [];
-
-  issue(claims: AccessTokenClaims): string {
-    this.issued.push(claims);
-    return `access:${claims.userId}:${claims.sessionId}`;
-  }
-}
-
-/**
- * Predictable tokens, but a real digest of them. A fake that returned
- * `sha256:<token>` would be readable and useless: the "nothing stores the
- * token" test would fail against a correct implementation, because the
- * token is a substring of that hash.
- */
-class FakeRefreshTokenFactory implements RefreshTokenFactory {
-  #next = 0;
-
-  static hashOf(token: string): string {
-    return createHash('sha256').update(token).digest('hex');
-  }
-
-  create(): RefreshToken {
-    this.#next += 1;
-    const token = `opaque-${this.#next.toString()}`;
-    return { token, hash: FakeRefreshTokenFactory.hashOf(token) };
-  }
-}
-
-class FakeIdGenerator implements IdGenerator {
-  #next = 0;
-
-  next(): string {
-    this.#next += 1;
-    return this.#next.toString();
-  }
-}
-
-class FixedClock implements Clock {
-  constructor(private current: Date) {}
-
-  now(): Date {
-    return this.current;
-  }
-
-  advance(ms: number): void {
-    this.current = new Date(this.current.getTime() + ms);
-  }
-}
 
 function setup() {
   const users = new InMemoryUserRepository();
@@ -155,20 +51,28 @@ describe('LoginUseCase', () => {
     expect(result).toEqual({
       userId: '900',
       sessionId: '1',
-      accessToken: 'access:900:1',
+      accessToken: 'access:900:1:1',
       accessTokenExpiresAt: new Date(NOW.getTime() + ACCESS_TTL_MS),
       refreshToken: 'opaque-1',
       refreshTokenExpiresAt: new Date(NOW.getTime() + REFRESH_TTL_MS),
     });
 
-    expect(ctx.sessions.created).toEqual([
+    expect([...ctx.sessions.sessions.values()]).toEqual([
       {
         id: '1',
         userId: '900',
-        refreshTokenHash: FakeRefreshTokenFactory.hashOf('opaque-1'),
         expiresAt: new Date(NOW.getTime() + REFRESH_TTL_MS),
         revokedAt: null,
         userAgent: 'curl/8.4.0',
+        createdAt: NOW,
+      },
+    ]);
+    expect([...ctx.sessions.tokens.values()]).toEqual([
+      {
+        id: '2',
+        sessionId: '1',
+        tokenHash: ctx.refreshTokens.hash('opaque-1'),
+        spentAt: null,
         createdAt: NOW,
       },
     ]);
@@ -177,10 +81,13 @@ describe('LoginUseCase', () => {
   it('stores the refresh token only as a hash', async () => {
     const result = await ctx.useCase.execute({ handle: 'sam', password: 'correcthorse1' });
 
-    const [session] = ctx.sessions.created;
-    // The whole row, not just the hash column: the token must not have been
+    // Every row, not just the hash column: the token must not have been
     // parked in user_agent or anywhere else on the way past.
-    expect(JSON.stringify(session)).not.toContain(result.refreshToken);
+    const stored = JSON.stringify([
+      ...ctx.sessions.sessions.values(),
+      ...ctx.sessions.tokens.values(),
+    ]);
+    expect(stored).not.toContain(result.refreshToken);
   });
 
   it('mints the access token against this session, not just the account', async () => {
@@ -207,7 +114,7 @@ describe('LoginUseCase', () => {
       InvalidCredentialsError,
     );
 
-    expect(ctx.sessions.created).toEqual([]);
+    expect(ctx.sessions.sessions.size).toBe(0);
     expect(ctx.issuer.issued).toEqual([]);
   });
 
@@ -216,7 +123,7 @@ describe('LoginUseCase', () => {
       ctx.useCase.execute({ handle: 'nobody', password: 'correcthorse1' }),
     ).rejects.toThrow(InvalidCredentialsError);
 
-    expect(ctx.sessions.created).toEqual([]);
+    expect(ctx.sessions.sessions.size).toBe(0);
     expect(ctx.issuer.issued).toEqual([]);
   });
 
@@ -264,10 +171,11 @@ describe('LoginUseCase', () => {
     expect(second.refreshToken).not.toBe(first.refreshToken);
     expect(second.accessToken).not.toBe(first.accessToken);
 
-    expect(ctx.sessions.created).toHaveLength(2);
+    const sessions = [...ctx.sessions.sessions.values()];
+    expect(sessions).toHaveLength(2);
     // Both live. Logging in on a phone must not sign you out on a laptop —
     // #9's logout is scoped to one session precisely because of this.
-    expect(ctx.sessions.created.map((session) => session.revokedAt)).toEqual([null, null]);
+    expect(sessions.map((session) => session.revokedAt)).toEqual([null, null]);
   });
 
   it('dates each session from the clock, not from whenever the test runs', async () => {
@@ -275,14 +183,14 @@ describe('LoginUseCase', () => {
     const result = await ctx.useCase.execute({ handle: 'sam', password: 'correcthorse1' });
 
     const expected = new Date(NOW.getTime() + 90 * 60 * 1000);
-    expect(ctx.sessions.created[0]?.createdAt).toEqual(expected);
+    expect(ctx.sessions.sessions.get('1')?.createdAt).toEqual(expected);
     expect(result.accessTokenExpiresAt).toEqual(new Date(expected.getTime() + ACCESS_TTL_MS));
   });
 
   it('records no user agent when the client sent none', async () => {
     await ctx.useCase.execute({ handle: 'sam', password: 'correcthorse1' });
 
-    expect(ctx.sessions.created[0]?.userAgent).toBeNull();
+    expect(ctx.sessions.sessions.get('1')?.userAgent).toBeNull();
   });
 
   /**
