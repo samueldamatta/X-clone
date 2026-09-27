@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { GetProfileUseCase } from './application/get-profile.use-case';
 import { LoginUseCase } from './application/login.use-case';
+import { RefreshSessionUseCase } from './application/refresh-session.use-case';
 import { RegisterUserUseCase } from './application/register-user.use-case';
 import { UpdateProfileUseCase } from './application/update-profile.use-case';
 import { systemClock } from './domain/ports/clock';
@@ -40,6 +41,9 @@ export function buildAppModule(config: IdentityConfig) {
   // HS256 fails here — before the gRPC server binds — instead of on the
   // first login of the day.
   const accessTokens = new Hs256AccessTokenIssuer(config.jwtSecret);
+  // Shared by login and refresh: both write the same chain of rows.
+  const sessions = new DrizzleSessionRepository(db);
+  const refreshTokens = new RandomRefreshTokenFactory();
 
   @Module({
     controllers: [IdentityGrpcController],
@@ -61,10 +65,22 @@ export function buildAppModule(config: IdentityConfig) {
         useFactory: () =>
           new LoginUseCase(
             users,
-            new DrizzleSessionRepository(db),
+            sessions,
             hasher,
             accessTokens,
-            new RandomRefreshTokenFactory(),
+            refreshTokens,
+            ids,
+            systemClock,
+            config.tokenLifetimes,
+          ),
+      },
+      {
+        provide: RefreshSessionUseCase,
+        useFactory: () =>
+          new RefreshSessionUseCase(
+            sessions,
+            accessTokens,
+            refreshTokens,
             ids,
             systemClock,
             config.tokenLifetimes,

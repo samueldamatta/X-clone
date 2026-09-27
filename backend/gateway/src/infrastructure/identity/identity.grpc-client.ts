@@ -12,9 +12,10 @@ import {
   identityProtoPath,
   type GetProfileRequest,
   type IdentityServiceClient,
+  type IssuedTokens,
   type LoginRequest,
-  type LoginResponse,
   type Profile,
+  type RefreshRequest,
   type RegisterRequest,
   type RegisterResponse,
   type UpdateProfileRequest,
@@ -54,7 +55,7 @@ interface IdentityProtoPackage {
 
 /**
  * grpc-js's generated methods are callback-shaped and identical in form
- * for every unary RPC, so the two below differ only in their message
+ * for every unary RPC, so the ones below differ only in their message
  * types.
  */
 type UnaryCall<Request, Response> = (
@@ -65,7 +66,8 @@ type UnaryCall<Request, Response> = (
 
 type IdentityRpcClient = Client & {
   register: UnaryCall<RegisterRequest, RegisterResponse>;
-  login: UnaryCall<LoginRequest, LoginResponse>;
+  login: UnaryCall<LoginRequest, IssuedTokens>;
+  refresh: UnaryCall<RefreshRequest, IssuedTokens>;
   getProfile: UnaryCall<GetProfileRequest, Profile>;
   updateProfile: UnaryCall<UpdateProfileRequest, Profile>;
 };
@@ -109,8 +111,12 @@ export class IdentityGrpcClient implements IdentityServiceClient, OnApplicationS
     return this.call(this.client.register, request);
   }
 
-  login(request: LoginRequest): Promise<LoginResponse> {
+  login(request: LoginRequest): Promise<IssuedTokens> {
     return this.call(this.client.login, request);
+  }
+
+  refresh(request: RefreshRequest): Promise<IssuedTokens> {
+    return this.call(this.client.refresh, request);
   }
 
   getProfile(request: GetProfileRequest): Promise<Profile> {

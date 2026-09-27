@@ -7,7 +7,10 @@ package identity.v1;
 // why this repo does not generate TypeScript from it (yet).
 service IdentityService {
   rpc Register(RegisterRequest) returns (RegisterResponse);
-  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Login(LoginRequest) returns (IssuedTokens);
+  // Spends the presented token and returns a new pair on the same session.
+  // Replaying a spent token revokes the session: UNAUTHENTICATED either way.
+  rpc Refresh(RefreshRequest) returns (IssuedTokens);
   rpc GetProfile(GetProfileRequest) returns (Profile);
   rpc UpdateProfile(UpdateProfileRequest) returns (Profile);
 }
@@ -35,13 +38,15 @@ message LoginRequest {
   string user_agent = 3;
 }
 
-message LoginResponse {
+// What both Login and Refresh answer with. One message, so the two
+// cannot drift into slightly different shapes of the same thing.
+message IssuedTokens {
   // A signed JWT. Short-lived, and verified by the Gateway with no call
   // back to this service — see docs/concepts/access-and-refresh-tokens.md.
   string access_token = 1;
   // Opaque. It means nothing to whoever holds it; only its hash is stored,
-  // and it is a key into identity.sessions, which is what makes revoking
-  // it possible at all.
+  // and it is a key into identity.refresh_tokens, which is what makes
+  // revoking it possible at all.
   string refresh_token = 2;
   // Both RFC 3339, matching created_at above. Absolute instants rather
   // than "expires_in" seconds: the JWT's own exp claim is absolute, and
@@ -53,6 +58,12 @@ message LoginResponse {
   string refresh_token_expires_at = 4;
   // Snowflake, decimal string. Who the caller just proved to be.
   string user_id = 5;
+}
+
+message RefreshRequest {
+  // The opaque token from the last Login or Refresh. Hashed on arrival and
+  // looked up; never stored as given.
+  string refresh_token = 1;
 }
 
 message GetProfileRequest {

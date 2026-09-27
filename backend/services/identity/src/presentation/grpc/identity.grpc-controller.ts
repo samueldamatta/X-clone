@@ -3,16 +3,19 @@ import { Controller, Inject } from '@nestjs/common';
 import { GrpcMethod, RpcException } from '@nestjs/microservices';
 import type {
   GetProfileRequest,
+  IssuedTokens as IssuedTokensMessage,
   LoginRequest,
-  LoginResponse,
   Profile as ProfileMessage,
+  RefreshRequest,
   RegisterRequest,
   RegisterResponse,
   UpdateProfileRequest,
 } from '@x-clone/proto';
 import { withFieldViolation } from '@x-clone/proto';
 import { GetProfileUseCase } from '../../application/get-profile.use-case';
+import type { IssuedTokens } from '../../application/issued-tokens';
 import { LoginUseCase } from '../../application/login.use-case';
+import { RefreshSessionUseCase } from '../../application/refresh-session.use-case';
 import { RegisterUserUseCase } from '../../application/register-user.use-case';
 import { UpdateProfileUseCase } from '../../application/update-profile.use-case';
 import {
@@ -20,6 +23,7 @@ import {
   EmptyProfileUpdateError,
   HandleTakenError,
   InvalidCredentialsError,
+  InvalidRefreshTokenError,
   ProfileNotFoundError,
 } from '../../domain/errors';
 import type { Profile } from '../../domain/profile';
@@ -33,6 +37,7 @@ type RegisterUser = Pick<RegisterUserUseCase, 'execute'>;
 type Login = Pick<LoginUseCase, 'execute'>;
 type GetProfile = Pick<GetProfileUseCase, 'execute'>;
 type UpdateProfile = Pick<UpdateProfileUseCase, 'execute'>;
+type RefreshSession = Pick<RefreshSessionUseCase, 'execute'>;
 
 @Controller()
 export class IdentityGrpcController {
@@ -41,6 +46,7 @@ export class IdentityGrpcController {
     @Inject(LoginUseCase) private readonly loginUser: Login,
     @Inject(GetProfileUseCase) private readonly getProfileUseCase: GetProfile,
     @Inject(UpdateProfileUseCase) private readonly updateProfileUseCase: UpdateProfile,
+    @Inject(RefreshSessionUseCase) private readonly refreshSession: RefreshSession,
   ) {}
 
   @GrpcMethod('IdentityService', 'Register')
@@ -62,7 +68,7 @@ export class IdentityGrpcController {
   }
 
   @GrpcMethod('IdentityService', 'Login')
-  async login(data: LoginRequest): Promise<LoginResponse> {
+  async login(data: LoginRequest): Promise<IssuedTokensMessage> {
     try {
       const result = await this.loginUser.execute({
         handle: data.handle,
@@ -73,15 +79,20 @@ export class IdentityGrpcController {
         ...(data.userAgent !== '' && { userAgent: data.userAgent }),
       });
 
-      return {
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        accessTokenExpiresAt: result.accessTokenExpiresAt.toISOString(),
-        refreshTokenExpiresAt: result.refreshTokenExpiresAt.toISOString(),
-        userId: result.userId,
-      };
+      return toIssuedTokensMessage(result);
     } catch (error) {
       throw toRpcException(error, 'Login');
+    }
+  }
+
+  @GrpcMethod('IdentityService', 'Refresh')
+  async refresh(data: RefreshRequest): Promise<IssuedTokensMessage> {
+    try {
+      return toIssuedTokensMessage(
+        await this.refreshSession.execute({ refreshToken: data.refreshToken }),
+      );
+    } catch (error) {
+      throw toRpcException(error, 'Refresh');
     }
   }
 
@@ -118,6 +129,17 @@ export class IdentityGrpcController {
       throw toRpcException(error, 'UpdateProfile');
     }
   }
+}
+
+// sessionId stays on this side of the wire: it is already in the JWT's `sid` claim.
+function toIssuedTokensMessage(tokens: IssuedTokens): IssuedTokensMessage {
+  return {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    accessTokenExpiresAt: tokens.accessTokenExpiresAt.toISOString(),
+    refreshTokenExpiresAt: tokens.refreshTokenExpiresAt.toISOString(),
+    userId: tokens.userId,
+  };
 }
 
 /**
@@ -161,8 +183,10 @@ function toRpcException(error: unknown, rpc: string): RpcException {
    * an unknown handle as for a wrong password, because naming which one
    * failed is exactly the account-enumeration answer the domain error
    * exists to withhold. A `field: 'handle'` here would undo all of it.
+   *
+   * A rejected refresh shares the branch: its four causes are hidden the same way.
    */
-  if (error instanceof InvalidCredentialsError) {
+  if (error instanceof InvalidCredentialsError || error instanceof InvalidRefreshTokenError) {
     return new RpcException({
       code: GrpcStatus.UNAUTHENTICATED,
       message: error.message,

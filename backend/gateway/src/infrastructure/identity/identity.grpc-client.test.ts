@@ -13,8 +13,9 @@ import { ProblemDetailsException } from '@x-clone/problem-details';
 import {
   identityProtoPath,
   withFieldViolation,
+  type IssuedTokens,
   type LoginRequest,
-  type LoginResponse,
+  type RefreshRequest,
   type RegisterRequest,
   type RegisterResponse,
 } from '@x-clone/proto';
@@ -27,7 +28,8 @@ type Handler<Request, Response> = (
 ) => void;
 
 type RegisterHandler = Handler<RegisterRequest, RegisterResponse>;
-type LoginHandler = Handler<LoginRequest, LoginResponse>;
+type LoginHandler = Handler<LoginRequest, IssuedTokens>;
+type RefreshHandler = Handler<RefreshRequest, IssuedTokens>;
 
 const notImplemented: Handler<never, never> = (_call, callback) => {
   callback({ code: GrpcStatus.UNIMPLEMENTED, details: 'not wired in this test' });
@@ -39,6 +41,7 @@ let running: { client: IdentityGrpcClient; stop: () => Promise<void> } | undefin
 async function startIdentity(handlers: {
   Register?: RegisterHandler;
   Login?: LoginHandler;
+  Refresh?: RefreshHandler;
 }): Promise<IdentityGrpcClient> {
   const definition = loadSync(identityProtoPath(), { keepCase: false, defaults: true });
   const proto = loadPackageDefinition(definition) as unknown as {
@@ -52,6 +55,7 @@ async function startIdentity(handlers: {
   server.addService(proto.identity.v1.IdentityService.service, {
     Register: handlers.Register ?? (notImplemented as unknown as RegisterHandler),
     Login: handlers.Login ?? (notImplemented as unknown as LoginHandler),
+    Refresh: handlers.Refresh ?? (notImplemented as unknown as RefreshHandler),
   });
 
   const port = await new Promise<number>((resolve, reject) => {
@@ -192,5 +196,56 @@ describe('IdentityGrpcClient over a real channel', () => {
     // declares `field`, and toBody() is what decides whether it reaches
     // the client. Asserting on the property would pass either way.
     expect(Object.keys(error.toBody())).not.toContain('field');
+  });
+});
+
+describe('IdentityGrpcClient.refresh', () => {
+  const pair: IssuedTokens = {
+    accessToken: 'header.payload.signature',
+    refreshToken: 'opaque-2',
+    accessTokenExpiresAt: '2026-09-11T12:35:00.000Z',
+    refreshTokenExpiresAt: '2026-10-11T12:00:00.000Z',
+    userId: '1847100000001',
+  };
+
+  it('sends the refresh token and reads the new pair back', async () => {
+    const seen: RefreshRequest[] = [];
+    const client = await startIdentity({
+      Refresh: (call, callback) => {
+        seen.push(call.request);
+        callback(null, pair);
+      },
+    });
+
+    await expect(client.refresh({ refreshToken: 'opaque-1' })).resolves.toEqual(pair);
+    expect(seen).toEqual([{ refreshToken: 'opaque-1' }]);
+  });
+
+  // The client must stop retrying and go to login on one, and retry on the other.
+  it('keeps a revoked session (401) apart from Identity being down (503)', async () => {
+    const revoked = await startIdentity({
+      Refresh: (_call, callback) => {
+        callback({ code: GrpcStatus.UNAUTHENTICATED, details: 'invalid refresh token' });
+      },
+    });
+    const rejected = (await revoked
+      .refresh({ refreshToken: 'opaque-1' })
+      .catch((caught: unknown) => caught)) as ProblemDetailsException;
+
+    running?.client.onApplicationShutdown();
+    await running?.stop();
+
+    const down = await startIdentity({
+      Refresh: (_call, callback) => {
+        callback({ code: GrpcStatus.UNAVAILABLE, details: 'connection refused' });
+      },
+    });
+    const unavailable = (await down
+      .refresh({ refreshToken: 'opaque-1' })
+      .catch((caught: unknown) => caught)) as ProblemDetailsException;
+
+    expect(rejected.getStatus()).toBe(401);
+    expect(Object.keys(rejected.toBody())).not.toContain('field');
+    expect(unavailable.getStatus()).toBe(503);
   });
 });

@@ -1,11 +1,6 @@
 import { HttpStatus } from '@nestjs/common';
 import { ProblemDetailsException } from '@x-clone/problem-details';
-import type {
-  LoginRequest,
-  LoginResponse,
-  RegisterRequest,
-  RegisterResponse,
-} from '@x-clone/proto';
+import type { LoginRequest, IssuedTokens, RegisterRequest, RegisterResponse } from '@x-clone/proto';
 import { describe, expect, it } from 'vitest';
 import { AuthController } from './auth.controller';
 
@@ -29,7 +24,7 @@ function controllerWith(register: (request: RegisterRequest) => Promise<Register
   return { controller, calls };
 }
 
-function loginControllerWith(login: (request: LoginRequest) => Promise<LoginResponse>) {
+function loginControllerWith(login: (request: LoginRequest) => Promise<IssuedTokens>) {
   const calls: LoginRequest[] = [];
   const controller = new AuthController({
     register: registerNotCalled,
@@ -113,7 +108,7 @@ describe('AuthController.register', () => {
   });
 });
 
-const aTokenPair: LoginResponse = {
+const aTokenPair: IssuedTokens = {
   accessToken: 'header.payload.signature',
   refreshToken: 'opaque-refresh-token',
   accessTokenExpiresAt: '2026-08-20T12:15:00.000Z',
@@ -153,7 +148,7 @@ describe('AuthController.login', () => {
 
   it('returns only the five public fields, whatever else the proto carries', async () => {
     const { controller } = loginControllerWith(() =>
-      Promise.resolve({ ...aTokenPair, sessionId: '999' } as LoginResponse),
+      Promise.resolve({ ...aTokenPair, sessionId: '999' } as IssuedTokens),
     );
 
     const response = await controller.login(CREDENTIALS);
