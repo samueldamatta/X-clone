@@ -385,8 +385,7 @@ else
   bad "refresh token storage is wrong" "leaked=${leaked:-?} hashed=${hashed:-?}"
 fi
 
-# Nothing anywhere in either table, not just in the hash column: a token
-# parked in user_agent would be just as leaked.
+# Nothing anywhere in either table: a token parked in user_agent is just as leaked.
 anywhere=$(psql_ "SELECT (SELECT count(*) FROM identity.sessions
                           WHERE sessions::text LIKE '%$refresh_token%')
                        + (SELECT count(*) FROM identity.refresh_tokens
@@ -715,8 +714,7 @@ chain_access=$(json_string "$body" accessToken)
 login "{\"handle\":\"$handle\",\"password\":\"$password\"}" >/dev/null
 other_refresh=$(json_string "$body" refreshToken)
 
-# iat is in whole seconds, and a JWT is deterministic: refreshed within the
-# login's second, the new access token is byte-identical to the old one.
+# iat is in whole seconds and a JWT is deterministic: within one second the new access token is byte-identical.
 sleep 1
 
 result=$(refresh "{\"refreshToken\":\"$chain_first\"}")
@@ -747,8 +745,7 @@ fi
 chain_session=$(psql_ "SELECT session_id FROM identity.refresh_tokens
                        WHERE token_hash = '$(token_hash "$chain_first")';")
 
-# The replay: the legitimate holder has already moved on to chain_second,
-# so whoever presents chain_first now is holding a copy.
+# The holder has moved on to chain_second, so whoever presents chain_first holds a copy.
 result=$(refresh "{\"refreshToken\":\"$chain_first\"}")
 reuse_status=${result%% *}
 reuse_type=${result#* }
@@ -772,8 +769,7 @@ else
   bad "the chain was not revoked" "revoked=${revoked:-<none>} session=${chain_session:-<none>}"
 fi
 
-# The criterion that makes revocation mean something: the token the
-# legitimate holder is carrying right now dies with the chain.
+# The token the legitimate holder is carrying right now must die with the chain.
 result=$(refresh "{\"refreshToken\":\"$chain_second\"}")
 revoked_body=$(cat "$body")
 if [ "${result%% *}" = "401" ]; then
@@ -793,8 +789,7 @@ fi
 result=$(refresh '{"refreshToken":"never-issued-by-anyone"}')
 unknown_body=$(cat "$body")
 
-# Spent, revoked and never-issued must look the same: the client's next move
-# is "log in again" in every case, and a thief learns nothing from which.
+# Spent, revoked and never-issued look the same, so a thief learns nothing from which.
 if [ "${result%% *}" = "401" ] && [ "$reuse_body" = "$revoked_body" ] &&
   [ "$revoked_body" = "$unknown_body" ]; then
   ok "spent, revoked and unknown tokens get byte-for-byte the same 401"
@@ -810,9 +805,7 @@ else
   bad "expected 400 naming refreshToken, got ${result%% *}" "$(cat "$body")"
 fi
 
-# Two tabs refreshing at once, for real: two processes, one token. The
-# conditional UPDATE lets exactly one through, and the loser is — by the
-# rule above — a replay, so the chain goes with it.
+# Two tabs at once: one wins, and the loser counts as a replay, so the chain goes with it.
 login "{\"handle\":\"$handle\",\"password\":\"$password\"}" >/dev/null
 raced=$(json_string "$body" refreshToken)
 race_a=$(mktemp)
@@ -868,9 +861,7 @@ else
   bad "expected 503/504 with identity down, got ${result:-<none>}" "$(cat "$body")"
 fi
 
-# The other half of "a revoked session is distinguishable": with identity
-# down, a refresh is a 5xx — retry — never the 401 that means "log in again".
-# other_live is a token that would succeed, so the 5xx is the outage's alone.
+# A live token with identity down: the 5xx ("retry") is the outage's alone, never the 401 ("log in again").
 result=$(refresh "{\"refreshToken\":\"$other_live\"}")
 if [ "${result%% *}" = "503" ] || [ "${result%% *}" = "504" ]; then
   ok "a refresh with identity down is ${result%% *}, not the 401 of a revoked session"

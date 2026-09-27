@@ -34,10 +34,7 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
-/**
- * Every refresh rejection — unknown, spent, expired, revoked — is this one
- * shape. The client's next move is "log in again" in every case.
- */
+/** Unknown, spent, expired or revoked: one indistinguishable error, since the client's answer to all four is "log in again". */
 export class InvalidRefreshTokenError extends Error {
   constructor() {
     super('invalid refresh token');

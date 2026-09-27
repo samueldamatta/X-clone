@@ -4,8 +4,12 @@ import type { Clock } from '../domain/ports/clock';
 import type { IdGenerator } from '../domain/ports/id-generator';
 import type { RefreshTokenFactory } from '../domain/ports/refresh-token-factory';
 import type { SessionRepository } from '../domain/ports/session-repository';
-import type { StoredRefreshToken } from '../domain/refresh-token';
-import { issueTokens, type IssuedTokens, type TokenLifetimes } from './issued-tokens';
+import {
+  issueTokens,
+  mintRefreshToken,
+  type IssuedTokens,
+  type TokenLifetimes,
+} from './issued-tokens';
 
 export interface RefreshSessionInput {
   refreshToken: string;
@@ -31,29 +35,25 @@ export class RefreshSessionUseCase {
     const now = this.clock.now();
 
     if (token.spentAt !== null) {
-      await this.sessions.revoke(session.id, now);
-      throw new InvalidRefreshTokenError();
+      return this.rejectAsReuse(session.id, now);
     }
 
     if (now >= session.expiresAt) {
       throw new InvalidRefreshTokenError();
     }
 
-    const minted = this.refreshTokens.create();
-    const next: StoredRefreshToken = {
-      id: this.ids.next(),
-      sessionId: session.id,
-      tokenHash: minted.hash,
-      spentAt: null,
-      createdAt: now,
-    };
+    const next = mintRefreshToken(this.refreshTokens, this.ids, session.id, now);
 
-    // Lost a race for this token: someone else spent it between our read and our write — reuse, same as above.
-    if (!(await this.sessions.rotate(token.id, next, now))) {
-      await this.sessions.revoke(session.id, now);
-      throw new InvalidRefreshTokenError();
+    // False means the token was spent (or its session revoked) after we read it: a lost race is a replay too.
+    if (!(await this.sessions.rotate(token.id, next.row, now))) {
+      return this.rejectAsReuse(session.id, now);
     }
 
-    return issueTokens(this.accessTokens, session, minted.token, now, this.lifetimes);
+    return issueTokens(this.accessTokens, session, next.token, now, this.lifetimes);
+  }
+
+  private async rejectAsReuse(sessionId: string, now: Date): Promise<never> {
+    await this.sessions.revoke(sessionId, now);
+    throw new InvalidRefreshTokenError();
   }
 }

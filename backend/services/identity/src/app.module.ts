@@ -41,7 +41,6 @@ export function buildAppModule(config: IdentityConfig) {
   // HS256 fails here — before the gRPC server binds — instead of on the
   // first login of the day.
   const accessTokens = new Hs256AccessTokenIssuer(config.jwtSecret);
-  // Shared by login and refresh: both write the same chain of rows.
   const sessions = new DrizzleSessionRepository(db);
   const refreshTokens = new RandomRefreshTokenFactory();
 

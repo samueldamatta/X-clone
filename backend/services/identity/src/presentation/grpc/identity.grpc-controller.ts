@@ -131,7 +131,6 @@ export class IdentityGrpcController {
   }
 }
 
-// sessionId stays on this side of the wire: it is already in the JWT's `sid` claim.
 function toIssuedTokensMessage(tokens: IssuedTokens): IssuedTokensMessage {
   return {
     accessToken: tokens.accessToken,
@@ -183,8 +182,6 @@ function toRpcException(error: unknown, rpc: string): RpcException {
    * an unknown handle as for a wrong password, because naming which one
    * failed is exactly the account-enumeration answer the domain error
    * exists to withhold. A `field: 'handle'` here would undo all of it.
-   *
-   * A rejected refresh shares the branch: its four causes are hidden the same way.
    */
   if (error instanceof InvalidCredentialsError || error instanceof InvalidRefreshTokenError) {
     return new RpcException({

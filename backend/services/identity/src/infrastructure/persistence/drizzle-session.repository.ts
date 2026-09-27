@@ -1,4 +1,4 @@
-import { and, eq, exists, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { SessionRepository, SessionWithToken } from '../../domain/ports/session-repository';
 import type { StoredRefreshToken } from '../../domain/refresh-token';
 import type { Session } from '../../domain/session';
@@ -26,30 +26,30 @@ export class DrizzleSessionRepository implements SessionRepository {
     return rows[0];
   }
 
-  /**
-   * The WHERE is the whole guard. Two concurrent UPDATEs of one row
-   * serialise on its lock, and Postgres re-checks `spent_at IS NULL`
-   * against the winner's committed row — so the second matches nothing.
-   */
   async rotate(spentTokenId: string, next: StoredRefreshToken, spentAt: Date): Promise<boolean> {
     return this.db.transaction(async (tx) => {
+      // FOR SHARE waits out an in-flight revoke and sees its commit; a later revoke waits for us.
+      const live = await tx
+        .select({ id: sessions.id })
+        .from(sessions)
+        .where(and(eq(sessions.id, next.sessionId), isNull(sessions.revokedAt)))
+        .for('share');
+      if (live.length === 0) {
+        return false;
+      }
+
+      // Two spends of one token serialise on its row lock; the second re-checks spent_at and matches nothing.
       const spent = await tx
         .update(refreshTokens)
         .set({ spentAt })
         .where(
           and(
             eq(refreshTokens.id, spentTokenId),
+            eq(refreshTokens.sessionId, next.sessionId),
             isNull(refreshTokens.spentAt),
-            exists(
-              tx
-                .select({ id: sessions.id })
-                .from(sessions)
-                .where(and(eq(sessions.id, refreshTokens.sessionId), isNull(sessions.revokedAt))),
-            ),
           ),
         )
         .returning({ id: refreshTokens.id });
-
       if (spent.length === 0) {
         return false;
       }

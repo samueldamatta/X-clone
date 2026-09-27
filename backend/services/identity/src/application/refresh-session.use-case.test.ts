@@ -61,13 +61,15 @@ describe('RefreshSessionUseCase', () => {
 
     expect(result).toEqual({
       userId: '900',
-      sessionId: loggedIn.sessionId,
       accessToken: 'access:900:1:2',
       accessTokenExpiresAt: new Date(refreshedAt.getTime() + ACCESS_TTL_MS),
       refreshToken: 'opaque-2',
       // Absolute: still 30 days from the login, not from this refresh.
       refreshTokenExpiresAt: new Date(NOW.getTime() + REFRESH_TTL_MS),
     });
+    // The same `sid` as the login's: rotation never changes which session this is.
+    const [loginClaims, refreshClaims] = ctx.issuer.issued;
+    expect(refreshClaims?.sessionId).toBe(loginClaims?.sessionId);
   });
 
   it('refuses a refresh token that has already been exchanged', async () => {
@@ -100,9 +102,10 @@ describe('RefreshSessionUseCase', () => {
     await ctx.refresh.execute({ refreshToken: laptop.refreshToken });
     await ctx.refresh.execute({ refreshToken: laptop.refreshToken }).catch(() => undefined);
 
-    const result = await ctx.refresh.execute({ refreshToken: phone.refreshToken });
+    await ctx.refresh.execute({ refreshToken: phone.refreshToken });
 
-    expect(result.sessionId).toBe(phone.sessionId);
+    const phoneClaims = ctx.issuer.issued[1];
+    expect(ctx.issuer.issued.at(-1)?.sessionId).toBe(phoneClaims?.sessionId);
   });
 
   it('refuses an unspent token once the session’s absolute lifetime is over', async () => {

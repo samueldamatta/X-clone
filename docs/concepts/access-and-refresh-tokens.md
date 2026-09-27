@@ -345,7 +345,6 @@ The guard is that the write carries its own condition:
 UPDATE refresh_tokens SET spent_at = now()
  WHERE id = $1
    AND spent_at IS NULL
-   AND EXISTS (SELECT 1 FROM sessions WHERE id = session_id AND revoked_at IS NULL)
 RETURNING id;
 ```
 
@@ -366,12 +365,25 @@ rule that makes detection work. The price moves to the client instead: the front
 Phase 5 has to make refreshes single-flight across tabs (`navigator.locks` or a
 `BroadcastChannel`), so that one tab refreshes and the others wait for its result.
 
-One gap is left open knowingly. The re-check after a lock wait covers the token row, not
-the session row read by `EXISTS`, so a revocation committing *during* a rotation can let
-that rotation through. The token it mints belongs to a revoked session and fails on first
-use; what escapes is one fifteen-minute access token — the same thing every access token
-already issued keeps after any revocation. Closing it costs a `SELECT … FOR SHARE` on the
-session in every refresh.
+The session needs the same care, and the obvious way of checking it is not enough. A
+first version put `AND EXISTS (SELECT 1 FROM sessions … revoked_at IS NULL)` in that
+`UPDATE`. Postgres's re-check after a lock wait covers the row being updated, not rows a
+subquery read — so a revocation committing *during* a rotation went unseen, and the
+rotation minted a fresh token into a session that had just been revoked. Reproduced against
+the real database with a revocation held open mid-transaction: the rotation raced past it,
+and the chain gained a row.
+
+The fix is a locking read first, in the same transaction:
+
+```sql
+SELECT id FROM sessions WHERE id = $1 AND revoked_at IS NULL FOR SHARE;
+```
+
+Under `READ COMMITTED`, a locking read waits for a concurrent `UPDATE` of that row to
+finish and then sees its committed result. So a rotation that overlaps a revocation waits
+for it and loses; a revocation that arrives during a rotation waits for the rotation to
+commit, and then kills the token it just minted. Either way the two are ordered, and
+nothing slips between them. It costs one more statement on every refresh.
 
 ### Absolute expiry
 
@@ -444,7 +456,7 @@ and will eventually want a reaper for chains whose session expired.
 4. [`refresh-session.use-case.ts`](../../backend/services/identity/src/application/refresh-session.use-case.ts) —
    rotation and reuse detection, in the order the checks happen
 5. [`drizzle-session.repository.ts`](../../backend/services/identity/src/infrastructure/persistence/drizzle-session.repository.ts) —
-   the conditional `UPDATE` that makes a race have one winner
+   the locking read and the conditional `UPDATE` that give every race one order
 6. [`schema.ts`](../../backend/services/identity/src/infrastructure/persistence/schema.ts) —
    a session and its chain, as tables
 7. [`scripts/integration.sh`](../../scripts/integration.sh) — all of the above, asserted

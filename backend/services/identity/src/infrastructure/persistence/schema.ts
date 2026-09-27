@@ -49,14 +49,7 @@ export const credentials = identitySchema.table('credentials', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/**
- * One row per login, and the chain its refresh tokens belong to. No token
- * is here: each lives in `refresh_tokens`, so rotating one never changes
- * which session it is, and revoking this row revokes every token at once.
- *
- * `revoked_at` rather than a DELETE: a revoked session is evidence, and the
- * spent tokens pointing at it are how a replay is recognised as one.
- */
+/** One row per login; revoked rather than deleted, because its spent tokens must still resolve to it. */
 export const sessions = identitySchema.table(
   'sessions',
   {
@@ -90,13 +83,7 @@ export const sessions = identitySchema.table(
   ],
 );
 
-/**
- * Every refresh token ever issued, only as a SHA-256 hash. Spent rather than
- * deleted: a replayed token must be found to be recognised as reuse.
- *
- * The UNIQUE on `token_hash` is also the index every refresh looks up by.
- * No index on `session_id`: revocation writes `sessions`, not this table.
- */
+// No index on session_id: revocation writes `sessions`, and nothing queries this table by it.
 export const refreshTokens = identitySchema.table('refresh_tokens', {
   id: snowflake('id').primaryKey(),
   sessionId: snowflake('session_id')

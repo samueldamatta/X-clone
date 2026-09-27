@@ -33,10 +33,7 @@ export class InMemoryUserRepository implements UserRepository {
   }
 }
 
-/**
- * Rows are replaced, never mutated, so a value handed out by a read stays a
- * snapshot — the same staleness a real SELECT has under concurrency.
- */
+/** Rows are replaced, never mutated, so a read stays a snapshot — as stale as a real SELECT under concurrency. */
 export class InMemorySessionRepository implements SessionRepository {
   readonly sessions = new Map<string, Session>();
   readonly tokens = new Map<string, StoredRefreshToken>();
@@ -77,7 +74,7 @@ export class InMemorySessionRepository implements SessionRepository {
   }
 }
 
-/** Records every call, because what login must *not* skip is as much its behaviour as what it returns. */
+/** Records every call, so a test can assert on work that must not be skipped. */
 export class FakePasswordHasher implements PasswordHasher {
   readonly hashed: string[] = [];
   readonly verified: { hash: string; password: string }[] = [];
@@ -102,11 +99,7 @@ export class FakeAccessTokenIssuer implements AccessTokenIssuer {
   }
 }
 
-/**
- * Predictable tokens, but a real digest of them: a `sha256:<token>` fake
- * would contain the token, and fail "nothing stores the token" against a
- * correct implementation.
- */
+/** Predictable tokens with a real digest: a `sha256:<token>` fake would contain the token it hides. */
 export class FakeRefreshTokenFactory implements RefreshTokenFactory {
   #next = 0;
 

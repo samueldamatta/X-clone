@@ -96,11 +96,7 @@ export class AuthController {
     return toIssuedTokens(tokens);
   }
 
-  /**
-   * 200 with a new pair, or 401 for every rejection — unknown, spent,
-   * expired or revoked alike. A 401 here means "log in again"; a 5xx means
-   * "try again", and those are the only two things a client must tell apart.
-   */
+  /** A 401 here means "log in again" and a 5xx means "try again" — the one distinction a client must make. */
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Body() body: unknown): Promise<IssuedTokens> {
@@ -108,8 +104,7 @@ export class AuthController {
   }
 }
 
-// Field by field, like register: a field added to the .proto must not
-// become public because nobody remembered to strip it.
+// Field by field, so a field added to the .proto never becomes public by accident.
 function toIssuedTokens(tokens: IssuedTokensMessage): IssuedTokens {
   return {
     accessToken: tokens.accessToken,

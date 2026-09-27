@@ -6,9 +6,13 @@ import type { PasswordHasher } from '../domain/ports/password-hasher';
 import type { RefreshTokenFactory } from '../domain/ports/refresh-token-factory';
 import type { SessionRepository } from '../domain/ports/session-repository';
 import type { UserRepository } from '../domain/ports/user-repository';
-import type { StoredRefreshToken } from '../domain/refresh-token';
 import type { Session } from '../domain/session';
-import { issueTokens, type IssuedTokens, type TokenLifetimes } from './issued-tokens';
+import {
+  issueTokens,
+  mintRefreshToken,
+  type IssuedTokens,
+  type TokenLifetimes,
+} from './issued-tokens';
 
 export interface LoginInput {
   handle: string;
@@ -68,10 +72,8 @@ export class LoginUseCase {
     }
 
     const now = this.clock.now();
-    const refreshToken = this.refreshTokens.create();
 
-    // Built before the insert, so a repository that rejects the rows cannot
-    // leave a token in the caller's hands that no session backs.
+    // Built before the insert, so a failed write never leaves the caller holding an unbacked token.
     const session: Session = {
       id: this.ids.next(),
       userId: credentials.userId,
@@ -80,16 +82,10 @@ export class LoginUseCase {
       userAgent: input.userAgent ?? null,
       createdAt: now,
     };
-    const firstToken: StoredRefreshToken = {
-      id: this.ids.next(),
-      sessionId: session.id,
-      tokenHash: refreshToken.hash,
-      spentAt: null,
-      createdAt: now,
-    };
+    const first = mintRefreshToken(this.refreshTokens, this.ids, session.id, now);
 
-    await this.sessions.create(session, firstToken);
+    await this.sessions.create(session, first.row);
 
-    return issueTokens(this.accessTokens, session, refreshToken.token, now, this.lifetimes);
+    return issueTokens(this.accessTokens, session, first.token, now, this.lifetimes);
   }
 }

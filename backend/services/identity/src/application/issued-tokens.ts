@@ -1,4 +1,7 @@
 import type { AccessTokenIssuer } from '../domain/ports/access-token-issuer';
+import type { IdGenerator } from '../domain/ports/id-generator';
+import type { RefreshTokenFactory } from '../domain/ports/refresh-token-factory';
+import type { StoredRefreshToken } from '../domain/refresh-token';
 import type { Session } from '../domain/session';
 
 export interface TokenLifetimes {
@@ -6,15 +9,33 @@ export interface TokenLifetimes {
   refreshTokenMs: number;
 }
 
-/** What login and refresh both answer with. */
 export interface IssuedTokens {
   userId: string;
-  sessionId: string;
   accessToken: string;
   accessTokenExpiresAt: Date;
   /** The only time this value exists anywhere. Nothing stores it. */
   refreshToken: string;
   refreshTokenExpiresAt: Date;
+}
+
+export interface MintedRefreshToken {
+  /** Handed to the client once. */
+  token: string;
+  /** What gets stored: the hash, never the token. */
+  row: StoredRefreshToken;
+}
+
+export function mintRefreshToken(
+  factory: RefreshTokenFactory,
+  ids: IdGenerator,
+  sessionId: string,
+  now: Date,
+): MintedRefreshToken {
+  const { token, hash } = factory.create();
+  return {
+    token,
+    row: { id: ids.next(), sessionId, tokenHash: hash, spentAt: null, createdAt: now },
+  };
 }
 
 export function issueTokens(
@@ -34,7 +55,6 @@ export function issueTokens(
 
   return {
     userId: session.userId,
-    sessionId: session.id,
     accessToken,
     accessTokenExpiresAt,
     refreshToken,

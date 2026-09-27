@@ -50,7 +50,6 @@ describe('LoginUseCase', () => {
 
     expect(result).toEqual({
       userId: '900',
-      sessionId: '1',
       accessToken: 'access:900:1:1',
       accessTokenExpiresAt: new Date(NOW.getTime() + ACCESS_TTL_MS),
       refreshToken: 'opaque-1',
@@ -81,8 +80,7 @@ describe('LoginUseCase', () => {
   it('stores the refresh token only as a hash', async () => {
     const result = await ctx.useCase.execute({ handle: 'sam', password: 'correcthorse1' });
 
-    // Every row, not just the hash column: the token must not have been
-    // parked in user_agent or anywhere else on the way past.
+    // Every row, not just the hash column: a token parked in user_agent is just as leaked.
     const stored = JSON.stringify([
       ...ctx.sessions.sessions.values(),
       ...ctx.sessions.tokens.values(),
@@ -167,7 +165,8 @@ describe('LoginUseCase', () => {
     ctx.clock.advance(1000);
     const second = await ctx.useCase.execute({ handle: 'sam', password: 'correcthorse1' });
 
-    expect(second.sessionId).not.toBe(first.sessionId);
+    const [firstClaims, secondClaims] = ctx.issuer.issued;
+    expect(secondClaims?.sessionId).not.toBe(firstClaims?.sessionId);
     expect(second.refreshToken).not.toBe(first.refreshToken);
     expect(second.accessToken).not.toBe(first.accessToken);
 

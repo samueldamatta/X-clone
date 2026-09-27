@@ -163,7 +163,6 @@ describe('IdentityGrpcController.register', () => {
 
 const LOGIN_RESULT: IssuedTokens = {
   userId: '900',
-  sessionId: '1',
   accessToken: 'header.payload.signature',
   accessTokenExpiresAt: new Date('2026-08-20T12:15:00.000Z'),
   refreshToken: 'opaque-token',
@@ -187,19 +186,6 @@ describe('IdentityGrpcController.login', () => {
       refreshTokenExpiresAt: '2026-09-19T12:00:00.000Z',
       userId: '900',
     });
-  });
-
-  /**
-   * The session id stays on this side of the wire. It is in the JWT's
-   * `sid` claim, where the Gateway will read it; repeating it in the
-   * response body would publish an internal handle nobody outside needs.
-   */
-  it('does not put the session id in the response', async () => {
-    const controller = loginControllerWith(() => Promise.resolve(LOGIN_RESULT));
-
-    const response = await controller.login({ handle: 'sam', password: 'p', userAgent: '' });
-
-    expect(Object.keys(response)).not.toContain('sessionId');
   });
 
   it('forwards the user agent to the use case', async () => {
